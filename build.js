@@ -9,7 +9,6 @@ const { PREFS, REGIONS, NEIGHBORS } = require("./lib/prefectures");
 const BASE = "https://claudetarouggl-coder.github.io/hinode-calendar/";
 const GA_ID = "G-4K8SR10PRC";
 const OUT = path.join(__dirname, "docs");
-const YEARS = [2026, 2027];
 
 // ビルド時点のJST日付
 const jstNow = new Date(Date.now() + 540 * 60000);
@@ -19,6 +18,7 @@ const TODAY_STR = `${TODAY.y}-${String(TODAY.m).padStart(2, "0")}-${String(TODAY
 const SPECIAL = {
   "2026-1-1": "元日", "2026-3-20": "春分", "2026-6-21": "夏至", "2026-9-23": "秋分", "2026-12-22": "冬至",
   "2027-1-1": "元日", "2027-3-21": "春分", "2027-6-21": "夏至", "2027-9-23": "秋分", "2027-12-22": "冬至",
+  "2028-1-1": "元日", "2028-3-20": "春分", "2028-6-21": "夏至", "2028-9-22": "秋分", "2028-12-21": "冬至",
 };
 const WDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const bySlug = Object.fromEntries(PREFS.map(p => [p.slug, p]));
@@ -44,8 +44,9 @@ const minBy = (arr, f) => arr.reduce((a, b) => (f(b) < f(a) ? b : a));
 const maxBy = (arr, f) => arr.reduce((a, b) => (f(b) > f(a) ? b : a));
 const lenStr = min => `${Math.floor(Math.round(min) / 60)}時間${String(Math.round(min) % 60).padStart(2, "0")}分`;
 
-// 月の主要年: その月の2026年分がまだ終わっていなければ2026、過ぎていれば2027
-const primaryYear = m => (m > TODAY.m || m === TODAY.m) && TODAY.y === 2026 ? 2026 : (TODAY.y === 2026 ? 2027 : TODAY.y);
+// 月の主要年: その月の今年分がまだ終わっていなければ今年、過ぎていれば来年
+const primaryYear = m => (m >= TODAY.m ? TODAY.y : TODAY.y + 1);
+const referenceYear = py => py === TODAY.y ? py + 1 : py - 1;
 
 // ---- HTMLヘルパー ----
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -59,7 +60,7 @@ function canonical(p) {
 // depth: ページの階層 (home=0, hub=1, month=2)。target: 正規パス("", "tokyo/", "tokyo/08/")
 function rel(depth, target) {
   linkTargets.add(target);
-  return "../".repeat(depth) + (target || "./");
+  return target ? "../".repeat(depth) + target : (depth ? "../".repeat(depth) : "./");
 }
 
 const CSS = `
@@ -151,7 +152,7 @@ function dayRowsHtml(md, highlightToday) {
     const cls = [r.wday === 6 ? "sat" : r.wday === 0 ? "sun" : "",
       highlightToday && md.y === TODAY.y && md.m === TODAY.m && r.d === TODAY.d ? "today-row" : ""].join(" ").trim();
     const sp = SPECIAL[`${md.y}-${md.m}-${r.d}`];
-    return `<tr${cls ? ` class="${cls}"` : ""}><td>${r.d}日(${WDAYS[r.wday]})${sp ? `<br><small>${sp}</small>` : ""}</td><td>${hhmm(r.dawn)}</td><td><strong>${hhmm(r.sunrise)}</strong></td><td>${hhmm(r.noon)}</td><td><strong>${hhmm(r.sunset)}</strong></td><td>${hhmm(r.dusk)}</td><td>${lenStr(r.dayLen)}</td><td>${diff}</td></tr>`;
+    return `<tr data-date="${md.y}-${md.m}-${r.d}"${cls ? ` class="${cls}"` : ""}><td>${r.d}日(${WDAYS[r.wday]})${sp ? `<br><small>${sp}</small>` : ""}</td><td>${hhmm(r.dawn)}</td><td><strong>${hhmm(r.sunrise)}</strong></td><td>${hhmm(r.noon)}</td><td><strong>${hhmm(r.sunset)}</strong></td><td>${hhmm(r.dusk)}</td><td>${lenStr(r.dayLen)}</td><td>${diff}</td></tr>`;
   }).join("\n");
   return `<div class="tbl"><table>
 <thead><tr><th>日付</th><th>薄明始</th><th>日の出</th><th>南中</th><th>日の入り</th><th>薄明終</th><th>昼の長さ</th><th>前日差</th></tr></thead>
@@ -161,7 +162,7 @@ function dayRowsHtml(md, highlightToday) {
 // ---- 月ページ ----
 function buildMonthPage(p, m) {
   const py = primaryYear(m);
-  const ry = py === 2026 ? 2027 : 2026;
+  const ry = referenceYear(py);
   const pm = monthData(p.slug, py, m);
   const rm = monthData(p.slug, ry, m);
   const earliestRise = minBy(pm.days, r => r.sunrise);
@@ -217,6 +218,7 @@ ${dayRowsHtml(rm, false)}
     h1: `${p.pref}の日の出・日の入り時刻 ${py}年${m}月`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: p.pref, path: `${p.slug}/` }, { name: `${m}月`, path: `${p.slug}/${mm}/` }],
     body,
+    extraScript: `<script>(function(){var n=new Date(Date.now()+540*60000);var c=n.getUTCFullYear()+"-"+(n.getUTCMonth()+1)+"-"+n.getUTCDate();document.querySelectorAll("tr[data-date]").forEach(function(tr){tr.classList.toggle("today-row",tr.getAttribute("data-date")===c);});})();</script>`,
   }));
 }
 
@@ -341,6 +343,7 @@ for (const p of PREFS) {
 buildHome();
 build404();
 buildSitemap();
+fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
 
 // 整合性チェック: リンク先の実在・ページ数・URLプレフィックス
 for (const t of linkTargets) {
