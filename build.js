@@ -5,6 +5,10 @@ const fs = require("fs");
 const path = require("path");
 const { dayTimes, hhmm, daysInMonth } = require("./lib/solar");
 const { PREFS, REGIONS, NEIGHBORS } = require("./lib/prefectures");
+const AFFILIATES = require("./lib/affiliates");
+let SPOTS = [];
+try { SPOTS = require("./lib/spots"); }
+catch (e) { if (e.code !== "MODULE_NOT_FOUND") throw e; /* 名所データ未作成のときだけスキップ */ }
 
 const BASE = "https://claudetarouggl-coder.github.io/hinode-calendar/";
 const GA_ID = "G-4K8SR10PRC";
@@ -47,6 +51,9 @@ const lenStr = min => `${Math.floor(Math.round(min) / 60)}時間${String(Math.ro
 // 月の主要年: その月の今年分がまだ終わっていなければ今年、過ぎていれば来年
 const primaryYear = m => (m >= TODAY.m ? TODAY.y : TODAY.y + 1);
 const referenceYear = py => py === TODAY.y ? py + 1 : py - 1;
+// 次の元日の年（元日当日のみ当年、翌日以降は来年分に切替）
+const HATSU_YEAR = TODAY.m === 1 && TODAY.d === 1 ? TODAY.y : TODAY.y + 1;
+const HATSU = `hatsuhinode/${HATSU_YEAR}/`;
 
 // ---- HTMLヘルパー ----
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -208,6 +215,7 @@ ${dayRowsHtml(rm, false)}
 <dt>${m}月の${esc(p.pref)}の昼の長さはどのくらいですか？</dt><dd>月初は${lenStr(first.dayLen)}、月末は${lenStr(last.dayLen)}で、約${Math.abs(lenDiff)}分${growing ? "長く" : "短く"}なります。</dd>
 <dt>${esc(p.pref)}の${m}月の南中時刻は何時ごろですか？</dt><dd>おおよそ${hhmm(minBy(pm.days, r => r.noon).noon)}〜${hhmm(maxBy(pm.days, r => r.noon).noon)}の範囲です。</dd>
 </dl></section>
+${m === 1 ? `<p><a href="${rel(2, `${HATSU}${p.slug}/`)}">→ ${esc(p.pref)}の初日の出${HATSU_YEAR}年（時刻・薄明・全国ランキング）</a></p>` : ""}
 <h2>近隣県の${m}月</h2><div class="links">${neighborLinks}</div>`;
 
   writePage(`${p.slug}/${mm}/index.html`, shell({
@@ -263,6 +271,7 @@ function buildHubPage(p) {
   const region = regionOf[p.slug];
   const regionLinks = REGIONS[region].filter(s => s !== p.slug).map(s =>
     `<a href="${rel(1, `${s}/`)}">${bySlug[s].pref}</a>`).join("");
+  const hatsuLink = `<a href="${rel(1, `${HATSU}${p.slug}/`)}">🌅 初日の出${HATSU_YEAR}</a>`;
   const dayLen = Math.round(t.sunset - t.sunrise);
 
   const body = `
@@ -274,7 +283,7 @@ function buildHubPage(p) {
 <div class="f"><div class="lb">昼の長さ</div><div class="vl" data-t="${p.slug}-daylen">${lenStr(dayLen)}</div></div>
 </div>
 <p>観測点は${esc(p.city)}（${esc(p.pref)}庁所在地）です。月別カレンダーで毎日の日の出・日の入り・南中時刻・市民薄明・昼の長さを確認できます。</p>
-<h2>月別カレンダー</h2><div class="links">${monthLinks}</div>
+<h2>月別カレンダー</h2><div class="links">${monthLinks}${hatsuLink}</div>
 <h2>${esc(region)}の他の都道府県</h2><div class="links">${regionLinks}</div>`;
 
   writePage(`${p.slug}/index.html`, shell({
@@ -285,6 +294,105 @@ function buildHubPage(p) {
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: p.pref, path: `${p.slug}/` }],
     body,
     extraScript: refreshScript(JSON.stringify([{ slug: p.slug, lat: p.lat, lng: p.lng }])),
+  }));
+}
+
+// ---- 初日の出ページ群 ----
+function affiliateBlock() {
+  if (!AFFILIATES.goods.length) return "";
+  const items = AFFILIATES.goods.map(g =>
+    `<li><a href="${esc(g.url)}" rel="sponsored noopener" target="_blank">${esc(g.label)}</a>${g.note ? ` — ${esc(g.note)}` : ""}</li>`).join("\n");
+  return `<section class="note"><h2>初日の出の持ち物・準備<small>（広告を含みます）</small></h2><ul style="margin-left:1.2em">${items}</ul></section>`;
+}
+
+function hatsuData() {
+  return PREFS.map(p => {
+    const t = dayTimes(HATSU_YEAR, 1, 1, p.lat, p.lng);
+    return { ...p, t };
+  }).sort((a, b) => a.t.sunrise - b.t.sunrise);
+}
+
+function buildHatsuIndex(ranked) {
+  const first = ranked[0], last = ranked[ranked.length - 1];
+  const rows = ranked.map((p, i) =>
+    `<tr><td>${i + 1}</td><td><a href="${rel(2, `${HATSU}${p.slug}/`)}">${esc(p.pref)}</a><small>（${esc(p.city)}）</small></td><td><strong>${hhmm(p.t.sunrise)}</strong></td><td>${hhmm(p.t.dawn)}</td><td>${hhmm(p.t.sunset)}</td></tr>`).join("\n");
+  const spread = Math.round(last.t.sunrise - first.t.sunrise);
+  const body = `
+<section class="feature"><p>${HATSU_YEAR}年の元日、47都道府県（県庁所在地基準）で最も早く初日の出を迎えるのは${first.pref}（${first.city}）の${hhmm(first.t.sunrise)}、最も遅いのは${last.pref}（${last.city}）の${hhmm(last.t.sunrise)}で、全国で約${spread}分の差があります。空が白み始める市民薄明はどの地域も日の出の約30分前からです。場所取りは薄明開始前の到着がおすすめです。</p></section>
+${affiliateBlock()}
+${SPOTS.length ? `<p><a href="${rel(2, `${HATSU}meisho/`)}">全国の初日の出名所${SPOTS.length}選の時刻一覧はこちら</a></p>` : ""}
+<h2>都道府県別 初日の出時刻ランキング</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>初日の出</th><th>薄明開始</th><th>元日の日の入り</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  writePage(`${HATSU}index.html`, shell({
+    path: HATSU, depth: 2,
+    title: `初日の出${HATSU_YEAR} 全国47都道府県の時刻一覧｜何時に見える？`,
+    desc: `${HATSU_YEAR}年元日の初日の出時刻を全国47都道府県で一覧比較。最も早いのは${first.pref}の${hhmm(first.t.sunrise)}、最も遅いのは${last.pref}の${hhmm(last.t.sunrise)}。薄明開始時刻と元日の日の入りもあわせて掲載しています。`,
+    h1: `初日の出${HATSU_YEAR}年 全国の時刻一覧`,
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: `初日の出${HATSU_YEAR}`, path: HATSU }],
+    body,
+  }));
+}
+
+function buildHatsuPref(p, rank, ranked) {
+  const t = p.t;
+  const tokyo = ranked.find(r => r.slug === "tokyo");
+  const dTokyo = Math.round(t.sunrise - tokyo.t.sunrise);
+  const sentences = [
+    `${HATSU_YEAR}年1月1日、${p.pref}（${p.city}）の初日の出は${hhmm(t.sunrise)}ごろです。`,
+    `全国47都道府県では${rank}番目の早さで、${p.slug === "tokyo" ? "" : `東京より約${Math.abs(dTokyo)}分${dTokyo < 0 ? "早い" : "遅い"}時刻です。`}`,
+    `空が白み始める市民薄明は${hhmm(t.dawn)}ごろから。場所取りをするならこの時刻までの到着がおすすめです。`,
+    `元日の日の入りは${hhmm(t.sunset)}、昼の長さは${lenStr(t.sunset - t.sunrise)}です。`,
+  ];
+  const neighborLinks = NEIGHBORS[p.slug].map(s =>
+    `<a href="${rel(3, `${HATSU}${s}/`)}">${bySlug[s].pref}の初日の出</a>`).join("");
+  const body = `
+<div class="today-box">
+<div class="f"><div class="lb">薄明開始</div><div class="vl">${hhmm(t.dawn)}</div></div>
+<div class="f"><div class="lb">初日の出</div><div class="vl">${hhmm(t.sunrise)}</div></div>
+<div class="f"><div class="lb">南中</div><div class="vl">${hhmm(t.noon)}</div></div>
+<div class="f"><div class="lb">日の入り</div><div class="vl">${hhmm(t.sunset)}</div></div>
+</div>
+<section class="feature"><p>${sentences.join("")}</p></section>
+${affiliateBlock()}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>${esc(p.pref)}の初日の出は何時ですか？</dt><dd>${HATSU_YEAR}年1月1日の${hhmm(t.sunrise)}ごろです（${esc(p.city)}・海抜0m基準の理論値）。山頂や高台では数分早く、建物や山に遮られる場所では遅くなります。</dd>
+<dt>何時までに観賞場所に着けばいいですか？</dt><dd>空が白み始める${hhmm(t.dawn)}（市民薄明開始）までの到着がおすすめです。人気スポットはさらに早めに。</dd>
+<dt>時刻は場所によって変わりますか？</dt><dd>同じ県内でも東側の海岸や高い場所ほど早くなります。掲載時刻は${esc(p.city)}基準です。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(3, HATSU)}">全国の初日の出ランキング</a>${SPOTS.length ? `<a href="${rel(3, `${HATSU}meisho/`)}">初日の出の名所${SPOTS.length}選</a>` : ""}<a href="${rel(3, `${p.slug}/01/`)}">${esc(p.pref)}の1月の日の出カレンダー</a></div>
+<h2>近隣県の初日の出</h2><div class="links">${neighborLinks}</div>`;
+  writePage(`${HATSU}${p.slug}/index.html`, shell({
+    path: `${HATSU}${p.slug}/`, depth: 3,
+    title: `【${HATSU_YEAR}年】${p.pref}の初日の出は${hhmm(t.sunrise)}｜元日の日の出時刻`,
+    desc: `${HATSU_YEAR}年1月1日、${p.pref}（${p.city}）の初日の出時刻は${hhmm(t.sunrise)}ごろ。薄明開始は${hhmm(t.dawn)}、日の入りは${hhmm(t.sunset)}。全国ランキングや近隣県の時刻、1月の日別カレンダーもあわせて掲載しています。`,
+    h1: `${p.pref}の初日の出 ${HATSU_YEAR}年`,
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: `初日の出${HATSU_YEAR}`, path: HATSU }, { name: p.pref, path: `${HATSU}${p.slug}/` }],
+    body,
+  }));
+}
+
+function buildMeisho() {
+  if (!SPOTS.length) return;
+  const spots = SPOTS.map(s => ({ ...s, t: dayTimes(HATSU_YEAR, 1, 1, s.lat, s.lng, s.elev) }))
+    .sort((a, b) => a.t.sunrise - b.t.sunrise);
+  const rows = spots.map((s, i) =>
+    `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${esc(s.pref)}</td><td>${s.elev}m</td><td><strong>${hhmm(s.t.sunrise)}</strong></td><td>${esc(s.note || "")}</td></tr>`).join("\n");
+  const first = spots[0];
+  const body = `
+<section class="feature"><p>全国の初日の出名所${spots.length}か所について、${HATSU_YEAR}年元日の日の出時刻を標高補正つきで計算しました。最も早いのは${first.name}（${first.pref}・標高${first.elev}m）の${hhmm(first.t.sunrise)}です。標高が高いほど地平線が下がって見えるため、平地より数分早く初日の出を迎えます。</p></section>
+${affiliateBlock()}
+<h2>名所別 初日の出時刻（早い順）</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>名所</th><th>都道府県</th><th>標高</th><th>初日の出</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table></div>
+<section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。</section>
+<p><a href="${rel(3, HATSU)}">都道府県別の初日の出時刻一覧はこちら</a></p>`;
+  writePage(`${HATSU}meisho/index.html`, shell({
+    path: `${HATSU}meisho/`, depth: 3,
+    title: `初日の出${HATSU_YEAR} 名所${spots.length}選の時刻一覧｜標高補正つき`,
+    desc: `${HATSU_YEAR}年元日、犬吠埼・高尾山・富士山頂など全国の初日の出名所${spots.length}か所の日の出時刻を標高補正つきで一覧掲載。最も早いのは${first.name}の${hhmm(first.t.sunrise)}です。`,
+    h1: `初日の出の名所${spots.length}選 ${HATSU_YEAR}年の時刻一覧`,
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: `初日の出${HATSU_YEAR}`, path: HATSU }, { name: "名所一覧", path: `${HATSU}meisho/` }],
+    body,
   }));
 }
 
@@ -307,13 +415,14 @@ function buildHome() {
     name: "日の出・日の入り時刻カレンダー", url: BASE,
   })}</script>`;
 
+  const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p></section>`;
   writePage("index.html", shell({
     path: "", depth: 0,
     title: "日の出・日の入り時刻カレンダー｜全国47都道府県",
-    desc: "全国47都道府県の今日の日の出・日の入り・南中時刻・昼の長さを一覧で確認。都道府県別に毎月の日別カレンダーを掲載しています。",
+    desc: "全国47都道府県の今日の日の出・日の入り・南中時刻・昼の長さを一覧で確認。都道府県別に毎月の日別カレンダー、初日の出の時刻も掲載しています。",
     h1: `全国の日の出・日の入り時刻（<span data-today-date>${TODAY.y}年${TODAY.m}月${TODAY.d}日</span>）`,
     breadcrumbs: [],
-    body: sections,
+    body: hatsuPromo + sections,
     extraHead: websiteJson,
     extraScript: refreshScript(JSON.stringify(PREFS.map(p => ({ slug: p.slug, lat: p.lat, lng: p.lng })))),
   }));
@@ -339,17 +448,22 @@ for (const p of PREFS) {
   buildHubPage(p);
   for (let m = 1; m <= 12; m++) buildMonthPage(p, m);
 }
+const ranked = hatsuData();
+buildHatsuIndex(ranked);
+ranked.forEach((p, i) => buildHatsuPref(p, i + 1, ranked));
+buildMeisho();
 buildHome();
 build404();
 buildSitemap();
 fs.writeFileSync(path.join(OUT, ".nojekyll"), "");
 
 // 整合性チェック: リンク先の実在・ページ数・URLプレフィックス
+// ponytail: rel()のdepth引数の正しさ自体は検証していない（リンク先の実在のみ）。階層を増やす時はdepthの目視確認が必要
 for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12;
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0);
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
