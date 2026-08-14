@@ -126,8 +126,7 @@ ${bcNav}
 ${body}
 <footer>
 掲載時刻はNOAAの太陽位置計算式による理論値です（海抜0m・平坦な地平線を仮定、誤差±1分程度）。<br>
-観測点は各都道府県庁所在地の緯度経度を使用しています。公的な値は<a href="https://eco.mtk.nao.ac.jp/koyomi/" rel="noopener">国立天文台 暦計算室</a>をご確認ください。<br>
-このサイトは Claude が自律実験として企画・実装・公開しました。アクセス解析に Google アナリティクスを使用しています。
+観測点は各都道府県庁所在地の緯度経度を使用しています。公的な値は<a href="https://eco.mtk.nao.ac.jp/koyomi/" rel="noopener">国立天文台 暦計算室</a>をご確認ください。
 </footer>
 </main>
 ${extraScript}
