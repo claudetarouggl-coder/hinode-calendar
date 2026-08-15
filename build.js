@@ -28,6 +28,11 @@ const WDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 const bySlug = Object.fromEntries(PREFS.map(p => [p.slug, p]));
 const regionOf = Object.fromEntries(
   Object.entries(REGIONS).flatMap(([r, slugs]) => slugs.map(s => [s, r])));
+const AREA_SLUGS = {
+  "北海道・東北": "hokkaido-tohoku", "関東": "kanto", "中部": "chubu",
+  "近畿": "kinki", "中国": "chugoku", "四国": "shikoku", "九州・沖縄": "kyushu-okinawa",
+};
+let areaPageCount = 0; // buildMeisho()実行後に確定（地域に名所が0件なら生成しないため）
 
 // ---- 計算（全県×全年月をメモ化） ----
 const monthCache = new Map();
@@ -404,9 +409,21 @@ function buildMeisho() {
   const rows = spots.map((s, i) =>
     `<tr><td>${i + 1}</td><td><a href="${rel(3, `${HATSU}meisho/${s.slug}/`)}">${esc(s.name)}</a></td><td>${esc(s.pref)}</td><td>${s.elev}m</td><td><strong>${hhmm(s.t.sunrise)}</strong></td><td>${esc(s.note || "")}</td></tr>`).join("\n");
   const first = spots[0];
+  const spotRegion = s => {
+    const prefFirst = s.pref.split("・")[0];
+    const prefEntry = PREFS.find(p => p.pref === prefFirst);
+    return prefEntry ? regionOf[prefEntry.slug] : null;
+  };
+  const areaGroups = Object.keys(REGIONS).map(region => ({
+    region, slug: AREA_SLUGS[region],
+    spots: spots.filter(s => spotRegion(s) === region), // spotsは既にsunrise昇順なのでfilter後も昇順のまま
+  })).filter(g => g.spots.length);
+  areaPageCount = areaGroups.length;
+  const areaNav = areaGroups.map(g => `<a href="${rel(3, `${HATSU}meisho/area/${g.slug}/`)}">${esc(g.region)}</a>`).join("");
   const body = `
 <section class="feature"><p>全国の初日の出名所${spots.length}か所について、${HATSU_YEAR}年元日の日の出時刻を標高補正つきで計算しました。最も早いのは${first.name}（${first.pref}・標高${first.elev}m）の${hhmm(first.t.sunrise)}です。標高が高いほど地平線が下がって見えるため、平地より数分早く初日の出を迎えます。</p></section>
 ${affiliateBlock()}
+<h2>地方別に探す</h2><div class="links">${areaNav}</div>
 <h2>名所別 初日の出時刻（早い順）</h2>
 <div class="tbl"><table><thead><tr><th>#</th><th>名所</th><th>都道府県</th><th>標高</th><th>初日の出</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table></div>
 <section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。山岳・高原のスポットは冬期の道路閉鎖や積雪で立ち入れない場合があります。必ず事前に開放状況・アクセス可否をご確認ください。</section>
@@ -420,6 +437,38 @@ ${affiliateBlock()}
     body,
   }));
   spots.forEach((s, i) => buildSpotPage(s, i + 1));
+  areaGroups.forEach(g => buildMeishoArea(g, areaGroups));
+}
+
+// ---- 初日の出 名所 地方別ページ ----
+function buildMeishoArea(group, areaGroups) {
+  const { region, slug, spots } = group;
+  const first = spots[0];
+  const rows = spots.map((s, i) =>
+    `<tr><td>${i + 1}</td><td><a href="${rel(5, `${HATSU}meisho/${s.slug}/`)}">${esc(s.name)}</a></td><td>${esc(s.pref)}</td><td>${s.elev}m</td><td><strong>${hhmm(s.t.sunrise)}</strong></td></tr>`).join("\n");
+  const otherAreaLinks = areaGroups.filter(g => g.slug !== slug)
+    .map(g => `<a href="${rel(5, `${HATSU}meisho/area/${g.slug}/`)}">${esc(g.region)}</a>`).join("");
+  const body = `
+<section class="feature"><p>${esc(region)}の初日の出スポット${spots.length}か所を、${HATSU_YEAR}年元日の日の出時刻（標高補正済みの計算値）つきで紹介。最も早いのは${first.name}の${hhmm(first.t.sunrise)}。</p></section>
+${affiliateBlock()}
+<h2>${esc(region)}の初日の出スポット（早い順）</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>名所</th><th>都道府県</th><th>標高</th><th>初日の出時刻</th></tr></thead><tbody>${rows}</tbody></table></div>
+<section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。山岳・高原のスポットは冬期の道路閉鎖や積雪で立ち入れない場合があります。必ず事前に開放状況・アクセス可否をご確認ください。</section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(5, `${HATSU}meisho/`)}">名所一覧</a><a href="${rel(5, HATSU)}">全国ランキング</a>${otherAreaLinks}</div>`;
+  writePage(`${HATSU}meisho/area/${slug}/index.html`, shell({
+    path: `${HATSU}meisho/area/${slug}/`, depth: 5,
+    title: `${region}の初日の出スポット${HATSU_YEAR}年${spots.length}選｜時刻つき一覧`,
+    desc: `${HATSU_YEAR}年元日、${region}の初日の出スポット${spots.length}か所を日の出時刻の早い順に紹介します。標高補正つきの計算値で、最も早いのは${first.name}（${first.pref}）の${hhmm(first.t.sunrise)}です。山頂から海岸まで様々な名所を掲載しているため、冬期は道路閉鎖や積雪による通行止めにご注意ください。`,
+    h1: `${region}の初日の出スポット ${HATSU_YEAR}年【時刻つき】`,
+    breadcrumbs: [
+      { name: "ホーム", path: "" },
+      { name: `初日の出${HATSU_YEAR}`, path: HATSU },
+      { name: "名所一覧", path: `${HATSU}meisho/` },
+      { name: region, path: `${HATSU}meisho/area/${slug}/` },
+    ],
+    body,
+  }));
 }
 
 // ---- 初日の出 名所個別ページ ----
@@ -734,7 +783,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + (SPOTS.length ? areaPageCount : 0) + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
