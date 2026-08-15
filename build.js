@@ -464,7 +464,7 @@ ${tojiGoods}
 <div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>南中</th><th>日の入り</th><th>昼の長さ</th></tr></thead><tbody>${rows}</tbody></table></div>
 <section class="faq"><h2>よくある質問</h2><dl>${faq}</dl></section>
 <h2>あわせて見る</h2>
-<div class="links">${kind === "toji" ? `<a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}年の全国一覧</a>` : `<a href="${rel(1, "toji/")}">冬至${TOJI.y}年の全国一覧</a>`}<a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
+<div class="links">${kind === "toji" ? `<a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}年の全国一覧</a><a href="${rel(1, "column/yuzuyu/")}">ゆず湯の由来と入り方</a>` : `<a href="${rel(1, "toji/")}">冬至${TOJI.y}年の全国一覧</a>`}<a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
 
   writePage(`${kind}/index.html`, shell({
     path: `${kind}/`, depth: 1,
@@ -564,6 +564,45 @@ function buildEarliestSunsetColumn() {
   }));
 }
 
+// ---- 解説記事: 冬至にゆず湯へ入るのはなぜ？ ----
+function buildYuzuyuColumn() {
+  const tojiGoods = (AFFILIATES.toji || []).length ? `<section class="note"><h2>ゆず湯・冬至かぼちゃの準備<small>（広告を含みます）</small></h2><ul style="margin-left:1.2em">${
+    AFFILIATES.toji.map(g => `<li><a href="${esc(g.url)}" rel="sponsored noopener" target="_blank">${esc(g.label)}</a> — ${esc(g.note)}</li>`).join("\n")
+  }</ul></section>` : "";
+
+  const body = `
+<section class="feature"><p>冬至（${TOJI.y}年は${TOJI.m}月${TOJI.d}日）が近づくと、銭湯や家庭のお風呂に丸ごとゆずを浮かべる「ゆず湯」の習慣が話題になります。この風習は江戸時代の銭湯の集客企画が起源とされ、今も冬至の代表的な行事として親しまれています。</p></section>
+<h2>由来 — 語呂合わせと禊</h2>
+<p>ゆず湯の由来には諸説ありますが、よく語られるのは語呂合わせです。「冬至」と「湯治」、「ゆず」と「（お金や病を）融通が利く」をかけたものとされています。また、冬至は太陽の力が最も弱まり翌日から再び強まっていく「一陽来復」の節目とされ、その前に強い香りのゆずで身を清める禊（みそぎ）の意味もあったとされています。</p>
+<p>起源として有力なのは江戸後期の銭湯による集客企画という説です。当時の風俗記録にゆず湯の記述が登場しており、そこから庶民の年中行事として広まっていったと考えられています。</p>
+<h2>ゆず湯の入り方</h2>
+<ul style="margin-left:1.2em">
+<li>ゆずは丸ごと5〜6個入れると香りが立ちやすい目安です。</li>
+<li>輪切りにすると香りは強く出ますが、果肉や種が湯船に散らばりやすいためネットに入れるのがおすすめです。</li>
+<li>肌が敏感な人や乳幼児は刺激を感じることがあるため、果皮を熱湯で少し蒸らしてから少量で試すと安心です。</li>
+<li>追い焚き機能つきの浴槽では、果肉や種が配管に入り込まないよう注意が必要です。</li>
+</ul>
+<h2>冬至かぼちゃとの関係</h2>
+<p>冬至にはゆず湯とあわせて、かぼちゃ（なんきん）を食べる習慣もあります。これは「ん」のつく食べ物を食べると運気が上がるとされる「運盛り」という風習の一つで、なんきん（かぼちゃ）やれんこん、にんじんなどが縁起物として好まれてきました。</p>
+${tojiGoods}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>ゆず湯はいつ入るのが正式ですか？</dt><dd>冬至の当日夜に入るのが通例とされていますが、前後の日でも問題ないとされています。</dd>
+<dt>赤ちゃんも一緒に入って大丈夫ですか？</dt><dd>ゆずの成分は肌への刺激があるため、果皮を少量にするか、香りだけを楽しむ形にするのが無難とされています。心配な場合は入浴を控えましょう。</dd>
+<dt>ゆずは何個入れればいいですか？</dt><dd>丸ごと5〜6個が香りの目安とされていますが、決まりはなく、家庭の浴槽の大きさに合わせて調整して問題ありません。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国の日の出・日の入り一覧</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a></div>`;
+
+  writePage("column/yuzuyu/index.html", shell({
+    path: "column/yuzuyu/", depth: 2,
+    title: "冬至にゆず湯へ入るのはなぜ？由来と入り方",
+    desc: `冬至（${TOJI.y}年は${TOJI.m}月${TOJI.d}日）にゆず湯へ入るのはなぜか、その由来を解説します。「冬至」と「湯治」の語呂合わせや一陽来復の禊としての意味、江戸時代の銭湯が起源とされる説、ゆずの個数や入れ方の目安、冬至かぼちゃとの関係まで詳しく紹介します。`,
+    h1: "冬至にゆず湯へ入るのはなぜ？",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "冬至のゆず湯", path: "column/yuzuyu/" }],
+    body,
+  }));
+}
+
 // ---- トップページ ----
 function buildHome() {
   const sections = Object.entries(REGIONS).map(([region, slugs]) => {
@@ -584,7 +623,7 @@ function buildHome() {
   })}</script>`;
 
   const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p>
-<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a></div></section>`;
+<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(0, "column/yuzuyu/")}">コラム：冬至のゆず湯</a></div></section>`;
   writePage("index.html", shell({
     path: "", depth: 0,
     title: "日の出・日の入り時刻カレンダー｜全国47都道府県",
@@ -625,6 +664,7 @@ buildSolstice("toji");
 buildSolstice("geshi");
 buildRanking();
 buildEarliestSunsetColumn();
+buildYuzuyuColumn();
 buildHome();
 build404();
 buildSitemap();
@@ -636,7 +676,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + 4; // +4: toji/geshi/ranking/column
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
