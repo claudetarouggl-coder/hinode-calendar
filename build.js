@@ -453,9 +453,13 @@ function buildSolstice(kind) {
 <dt>夏至は日の出が最も早い日ですか？</dt><dd>厳密には日の出が最も早いのは夏至より1週間ほど前、日の入りが最も遅いのは夏至の1週間ほど後です。均時差（南中時刻のずれ）が原因で、<a href="${rel(1, "column/earliest-sunset/")}">冬の「日の入りが最も早い日」のずれ</a>と同じ仕組みです。</dd>
 <dt>夏至の昼はどのくらい長いのですか？</dt><dd>東京では${lenStr(tokyo.len)}です。冬至より約${lenStr(diffLen)}長く、これが一年の最大値です。</dd>`;
 
+  const tojiGoods = kind === "toji" && (AFFILIATES.toji || []).length ? `<section class="note"><h2>冬至の過ごし方の定番<small>（広告を含みます）</small></h2><ul style="margin-left:1.2em">${
+    AFFILIATES.toji.map(g => `<li><a href="${esc(g.url)}" rel="sponsored noopener" target="_blank">${esc(g.label)}</a> — ${esc(g.note)}</li>`).join("\n")
+  }</ul></section>` : "";
   const mm2 = String(s.m).padStart(2, "0");
   const body = `
 <section class="feature"><p>${intro}</p></section>
+${tojiGoods}
 <h2>${name}${s.y}年 全国47都道府県の日の出・日の入り（昼が${kind === "toji" ? "短" : "長"}い順）</h2>
 <div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>南中</th><th>日の入り</th><th>昼の長さ</th></tr></thead><tbody>${rows}</tbody></table></div>
 <section class="faq"><h2>よくある質問</h2><dl>${faq}</dl></section>
