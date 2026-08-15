@@ -402,7 +402,7 @@ function buildMeisho() {
   const spots = SPOTS.map(s => ({ ...s, t: dayTimes(HATSU_YEAR, 1, 1, s.lat, s.lng, s.elev) }))
     .sort((a, b) => a.t.sunrise - b.t.sunrise);
   const rows = spots.map((s, i) =>
-    `<tr><td>${i + 1}</td><td>${esc(s.name)}</td><td>${esc(s.pref)}</td><td>${s.elev}m</td><td><strong>${hhmm(s.t.sunrise)}</strong></td><td>${esc(s.note || "")}</td></tr>`).join("\n");
+    `<tr><td>${i + 1}</td><td><a href="${rel(3, `${HATSU}meisho/${s.slug}/`)}">${esc(s.name)}</a></td><td>${esc(s.pref)}</td><td>${s.elev}m</td><td><strong>${hhmm(s.t.sunrise)}</strong></td><td>${esc(s.note || "")}</td></tr>`).join("\n");
   const first = spots[0];
   const body = `
 <section class="feature"><p>全国の初日の出名所${spots.length}か所について、${HATSU_YEAR}年元日の日の出時刻を標高補正つきで計算しました。最も早いのは${first.name}（${first.pref}・標高${first.elev}m）の${hhmm(first.t.sunrise)}です。標高が高いほど地平線が下がって見えるため、平地より数分早く初日の出を迎えます。</p></section>
@@ -417,6 +417,64 @@ ${affiliateBlock()}
     desc: `${HATSU_YEAR}年元日、犬吠埼・高尾山・富士山頂など全国の初日の出名所${spots.length}か所の日の出時刻を標高補正つきで一覧掲載。最も早いのは${first.name}の${hhmm(first.t.sunrise)}です。`,
     h1: `初日の出の名所${spots.length}選 ${HATSU_YEAR}年の時刻一覧`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: `初日の出${HATSU_YEAR}`, path: HATSU }, { name: "名所一覧", path: `${HATSU}meisho/` }],
+    body,
+  }));
+  spots.forEach((s, i) => buildSpotPage(s, i + 1));
+}
+
+// ---- 初日の出 名所個別ページ ----
+function buildSpotPage(spot, rankInfo) {
+  const t = spot.t; // dayTimes(HATSU_YEAR,1,1,lat,lng,elev) 済み（buildMeisho側で計算済みのものを再利用）
+  const t0 = dayTimes(HATSU_YEAR, 1, 1, spot.lat, spot.lng); // 標高補正なし（比較用）
+  const xMin = Math.round(t0.sunrise - t.sunrise);
+  const prefFirst = spot.pref.split("・")[0];
+  const prefEntry = PREFS.find(p => p.pref === prefFirst);
+
+  const sentences = [`${HATSU_YEAR}年1月1日、${esc(spot.name)}（${esc(spot.pref)}）の初日の出は${hhmm(t.sunrise)}ごろです。`];
+  if (spot.elev >= 10 && xMin !== 0) {
+    sentences.push(`標高${spot.elev}mの地平線伏角を補正した理論値で、平地より${xMin}分早い計算です。`);
+  }
+  sentences.push(`空が白み始める市民薄明は${hhmm(t.dawn)}から。混雑する名所では薄明開始より前の到着が安心です。${esc(spot.note || "")}。`);
+
+  const seeAlso = [
+    `<a href="${rel(4, `${HATSU}meisho/`)}">名所一覧</a>`,
+    `<a href="${rel(4, HATSU)}">全国ランキング</a>`,
+  ];
+  if (prefEntry) {
+    seeAlso.push(`<a href="${rel(4, `${HATSU}${prefEntry.slug}/`)}">${esc(prefEntry.pref)}の初日の出</a>`);
+    seeAlso.push(`<a href="${rel(4, `${prefEntry.slug}/01/`)}">${esc(prefEntry.pref)}の1月の日の出カレンダー</a>`);
+  }
+
+  const body = `
+<div class="today-box">
+<div class="f"><div class="lb">薄明開始</div><div class="vl">${hhmm(t.dawn)}</div></div>
+<div class="f"><div class="lb">初日の出</div><div class="vl">${hhmm(t.sunrise)}</div></div>
+<div class="f"><div class="lb">標高</div><div class="vl">${spot.elev}m</div></div>
+</div>
+<section class="feature"><p>${sentences.join("")}</p></section>
+<section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。山岳・高原のスポットは冬期の道路閉鎖や積雪で立ち入れない場合があります。必ず事前に開放状況・アクセス可否をご確認ください。</section>
+${affiliateBlock()}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>${esc(spot.name)}の初日の出は何時？</dt><dd>${HATSU_YEAR}年1月1日の${hhmm(t.sunrise)}ごろです（標高${spot.elev}m地点の理論値）。</dd>
+<dt>何時までに着けばいい？</dt><dd>空が白み始める薄明開始の${hhmm(t.dawn)}ごろまでの到着が目安です。人気の名所ではさらに余裕を持ってお出かけください。</dd>
+<dt>時刻はどのくらい正確？</dt><dd>NOAAの太陽位置計算式による理論値で、標高による地平線伏角も補正しています。天候や周囲の地形により実際の見え方は前後します。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links">${seeAlso.join("")}</div>`;
+
+  const desc = `${HATSU_YEAR}年元日、${spot.name}（${spot.pref}）の初日の出は${hhmm(t.sunrise)}ごろ。標高${spot.elev}mの地平線伏角を補正した理論値で、空が白み始める薄明開始は${hhmm(t.dawn)}からです。${spot.note ? `${spot.note}。` : ""}混雑が予想される名所のため、薄明開始までの到着で余裕を持って初日の出を迎えましょう。`;
+
+  writePage(`${HATSU}meisho/${spot.slug}/index.html`, shell({
+    path: `${HATSU}meisho/${spot.slug}/`, depth: 4,
+    title: `${spot.name}の初日の出${HATSU_YEAR}は${hhmm(t.sunrise)}｜何時に行けばいい？`,
+    desc,
+    h1: `${spot.name}の初日の出 ${HATSU_YEAR}年`,
+    breadcrumbs: [
+      { name: "ホーム", path: "" },
+      { name: `初日の出${HATSU_YEAR}`, path: HATSU },
+      { name: "名所一覧", path: `${HATSU}meisho/` },
+      { name: spot.name, path: `${HATSU}meisho/${spot.slug}/` },
+    ],
     body,
   }));
 }
@@ -676,7 +734,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
