@@ -3,7 +3,7 @@
 // 生成物: docs/ 以下に index.html + 47県ハブ + 47×12月ページ + sitemap.xml + 404.html
 const fs = require("fs");
 const path = require("path");
-const { dayTimes, hhmm, daysInMonth } = require("./lib/solar");
+const { dayTimes, hhmm, daysInMonth, solarBasis } = require("./lib/solar");
 const { PREFS, REGIONS, NEIGHBORS } = require("./lib/prefectures");
 const AFFILIATES = require("./lib/affiliates");
 let SPOTS = [];
@@ -54,6 +54,28 @@ const referenceYear = py => py === TODAY.y ? py + 1 : py - 1;
 // 次の元日の年（元日当日のみ当年、翌日以降は来年分に切替）
 const HATSU_YEAR = TODAY.m === 1 && TODAY.d === 1 ? TODAY.y : TODAY.y + 1;
 const HATSU = `hatsuhinode/${HATSU_YEAR}/`;
+
+// 次に来る冬至・夏至（エバーグリーンURL /toji/ /geshi/ の主要年）
+// 日付は太陽赤緯の極値（=至点）をJSTで探して決める。テーブル不要で何年でも動く
+function solsticeDate(y, kind) {
+  const m = kind === "toji" ? 12 : 6;
+  let best = null;
+  for (let d = 17; d <= 25; d++) {
+    for (let min = 0; min < 1440; min += 10) {
+      const jd = (Date.UTC(y, m - 1, d) + (min - 540) * 60000) / 86400000 + 2440587.5;
+      const { decl } = solarBasis(jd);
+      if (!best || (kind === "toji" ? decl < best.decl : decl > best.decl)) best = { d, decl };
+    }
+  }
+  return { y, m, d: best.d };
+}
+function nextSolstice(kind) {
+  const cur = solsticeDate(TODAY.y, kind);
+  if (cur.m > TODAY.m || (cur.m === TODAY.m && cur.d >= TODAY.d)) return cur;
+  return solsticeDate(TODAY.y + 1, kind);
+}
+const TOJI = nextSolstice("toji");
+const GESHI = nextSolstice("geshi");
 
 // ---- HTMLヘルパー ----
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -119,6 +141,7 @@ function shell({ path: pagePath, depth, title, desc, h1, breadcrumbs, body, extr
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${canon}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌅</text></svg>">
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=${GA_ID}"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');</script>
@@ -216,6 +239,8 @@ ${dayRowsHtml(rm, false)}
 <dt>${esc(p.pref)}の${m}月の南中時刻は何時ごろですか？</dt><dd>おおよそ${hhmm(minBy(pm.days, r => r.noon).noon)}〜${hhmm(maxBy(pm.days, r => r.noon).noon)}の範囲です。</dd>
 </dl></section>
 ${m === 1 ? `<p><a href="${rel(2, `${HATSU}${p.slug}/`)}">→ ${esc(p.pref)}の初日の出${HATSU_YEAR}年（時刻・薄明・全国ランキング）</a></p>` : ""}
+${m === 12 ? `<p><a href="${rel(2, "toji/")}">→ 冬至${TOJI.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
+${m === 6 ? `<p><a href="${rel(2, "geshi/")}">→ 夏至${GESHI.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
 <h2>近隣県の${m}月</h2><div class="links">${neighborLinks}</div>`;
 
   writePage(`${p.slug}/${mm}/index.html`, shell({
@@ -396,6 +421,145 @@ ${affiliateBlock()}
   }));
 }
 
+// ---- 冬至・夏至ページ（エバーグリーンURL、主要年は次の該当日） ----
+function buildSolstice(kind) {
+  const s = kind === "toji" ? TOJI : GESHI;
+  const name = kind === "toji" ? "冬至" : "夏至";
+  const rows47 = PREFS.map(p => {
+    const t = dayTimes(s.y, s.m, s.d, p.lat, p.lng);
+    return { ...p, t, len: t.sunset - t.sunrise };
+  });
+  // 冬至=昼が短い順、夏至=昼が長い順（そのページの主役の並び）
+  const sorted = [...rows47].sort((a, b) => kind === "toji" ? a.len - b.len : b.len - a.len);
+  const ext = sorted[0], opp = sorted[sorted.length - 1];
+  const tokyo = rows47.find(r => r.slug === "tokyo");
+  // 対になる至点の東京の昼の長さ（比較文用）
+  const other = kind === "toji" ? GESHI : TOJI;
+  const tokyoOther = dayTimes(other.y, other.m, other.d, tokyo.lat, tokyo.lng);
+  const diffLen = Math.abs((tokyoOther.sunset - tokyoOther.sunrise) - tokyo.len);
+
+  const rows = sorted.map((p, i) =>
+    `<tr><td>${i + 1}</td><td><a href="${rel(1, `${p.slug}/`)}">${esc(p.pref)}</a><small>（${esc(p.city)}）</small></td><td><strong>${hhmm(p.t.sunrise)}</strong></td><td>${hhmm(p.t.noon)}</td><td><strong>${hhmm(p.t.sunset)}</strong></td><td>${lenStr(p.len)}</td></tr>`).join("\n");
+
+  const intro = kind === "toji"
+    ? `${s.y}年の冬至は${s.m}月${s.d}日です。一年で昼が最も短い日で、東京の昼の長さは${lenStr(tokyo.len)}。夏至と比べると約${lenStr(diffLen)}も短くなります。全国で最も昼が短いのは${ext.pref}（${ext.city}）の${lenStr(ext.len)}、最も長いのは${opp.pref}（${opp.city}）の${lenStr(opp.len)}で、緯度が高い（北にある）ほど冬の昼は短くなります。`
+    : `${s.y}年の夏至は${s.m}月${s.d}日です。一年で昼が最も長い日で、東京の昼の長さは${lenStr(tokyo.len)}。冬至と比べると約${lenStr(diffLen)}も長くなります。全国で最も昼が長いのは${ext.pref}（${ext.city}）の${lenStr(ext.len)}、最も短いのは${opp.pref}（${opp.city}）の${lenStr(opp.len)}で、緯度が高い（北にある）ほど夏の昼は長くなります。`;
+
+  const faq = kind === "toji" ? `
+<dt>${s.y}年の冬至はいつですか？</dt><dd>${s.y}年${s.m}月${s.d}日です。翌年以降は12月21日または22日になります（年によって変わります）。</dd>
+<dt>冬至は日の出が最も遅く、日の入りが最も早い日ですか？</dt><dd>いいえ。日の入りが最も早いのは冬至より2週間ほど前、日の出が最も遅いのは年明けの1月上旬です。詳しくは<a href="${rel(1, "column/earliest-sunset/")}">解説記事</a>をご覧ください。</dd>
+<dt>冬至の昼はどのくらい短いのですか？</dt><dd>東京では${lenStr(tokyo.len)}です。夏至より約${lenStr(diffLen)}短く、これが一年の最小値です。</dd>` : `
+<dt>${s.y}年の夏至はいつですか？</dt><dd>${s.y}年${s.m}月${s.d}日です。毎年6月21日ごろになります。</dd>
+<dt>夏至は日の出が最も早い日ですか？</dt><dd>厳密には日の出が最も早いのは夏至より1週間ほど前、日の入りが最も遅いのは夏至の1週間ほど後です。均時差（南中時刻のずれ）が原因で、<a href="${rel(1, "column/earliest-sunset/")}">冬の「日の入りが最も早い日」のずれ</a>と同じ仕組みです。</dd>
+<dt>夏至の昼はどのくらい長いのですか？</dt><dd>東京では${lenStr(tokyo.len)}です。冬至より約${lenStr(diffLen)}長く、これが一年の最大値です。</dd>`;
+
+  const mm2 = String(s.m).padStart(2, "0");
+  const body = `
+<section class="feature"><p>${intro}</p></section>
+<h2>${name}${s.y}年 全国47都道府県の日の出・日の入り（昼が${kind === "toji" ? "短" : "長"}い順）</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>南中</th><th>日の入り</th><th>昼の長さ</th></tr></thead><tbody>${rows}</tbody></table></div>
+<section class="faq"><h2>よくある質問</h2><dl>${faq}</dl></section>
+<h2>あわせて見る</h2>
+<div class="links">${kind === "toji" ? `<a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}年の全国一覧</a>` : `<a href="${rel(1, "toji/")}">冬至${TOJI.y}年の全国一覧</a>`}<a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
+
+  writePage(`${kind}/index.html`, shell({
+    path: `${kind}/`, depth: 1,
+    title: `${name}${s.y}年はいつ？${s.m}月${s.d}日の日の出・日の入り時刻 全国一覧`,
+    desc: `${s.y}年の${name}は${s.m}月${s.d}日。一年で最も昼が${kind === "toji" ? "短い" : "長い"}日の日の出・日の入り・南中時刻・昼の長さを全国47都道府県で一覧比較。東京の昼の長さは${lenStr(tokyo.len)}です。`,
+    h1: `${name}${s.y}年（${s.m}月${s.d}日）の日の出・日の入り時刻`,
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: `${name}${s.y}`, path: `${kind}/` }],
+    body,
+  }));
+}
+
+// ---- 日の出が早い県ランキング ----
+function buildRanking() {
+  const mk = (y, m, d) => PREFS.map(p => ({ ...p, t: dayTimes(y, m, d, p.lat, p.lng) }))
+    .sort((a, b) => a.t.sunrise - b.t.sunrise);
+  const geshiRank = mk(GESHI.y, GESHI.m, GESHI.d);
+  const tojiRank = mk(TOJI.y, TOJI.m, TOJI.d);
+  const table = ranked => `<div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>日の入り</th></tr></thead><tbody>${
+    ranked.map((p, i) => `<tr><td>${i + 1}</td><td><a href="${rel(1, `${p.slug}/`)}">${esc(p.pref)}</a><small>（${esc(p.city)}）</small></td><td><strong>${hhmm(p.t.sunrise)}</strong></td><td>${hhmm(p.t.sunset)}</td></tr>`).join("\n")
+  }</tbody></table></div>`;
+  const g1 = geshiRank[0], gl = geshiRank[geshiRank.length - 1];
+  const t1 = tojiRank[0], tl = tojiRank[tojiRank.length - 1];
+
+  const body = `
+<section class="feature"><p>「日本で一番日の出が早い県はどこ？」— 答えは季節で変わります。夏は太陽が北寄りから昇るため<strong>北にある県ほど早く</strong>、冬は南寄りから昇るため<strong>東にある県が早く</strong>なります。夏至（${GESHI.y}年${GESHI.m}月${GESHI.d}日）に最も日の出が早いのは${g1.pref}（${g1.city}）の${hhmm(g1.t.sunrise)}。冬至（${TOJI.y}年${TOJI.m}月${TOJI.d}日）では${t1.pref}（${t1.city}）の${hhmm(t1.t.sunrise)}が最も早くなります。</p></section>
+<h2>夏至の日の出が早い県ランキング（${GESHI.y}年${GESHI.m}月${GESHI.d}日）</h2>
+<p>最も早い${g1.pref}と最も遅い${gl.pref}（${hhmm(gl.t.sunrise)}）では約${Math.round(gl.t.sunrise - g1.t.sunrise)}分の差があります。緯度（南北の位置）の影響が強く出る並びです。</p>
+${table(geshiRank)}
+<h2>冬至の日の出が早い県ランキング（${TOJI.y}年${TOJI.m}月${TOJI.d}日）</h2>
+<p>最も早い${t1.pref}と最も遅い${tl.pref}（${hhmm(tl.t.sunrise)}）では約${Math.round(tl.t.sunrise - t1.t.sunrise)}分の差があります。夏とは順位が大きく入れ替わり、経度（東西の位置）の影響が支配的になります。</p>
+${table(tojiRank)}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>日本で一番早く朝日が見られる都道府県はどこですか？</dt><dd>夏は${g1.pref}など北の県、冬は${t1.pref}など東の県です。県庁所在地基準の理論値で、同じ県内でも東側や高台ではさらに早くなります。</dd>
+<dt>なぜ季節でランキングが変わるのですか？</dt><dd>夏の太陽は北東から、冬の太陽は南東から昇ります。夏は北にあるほど昼が長い（＝日の出が早い）効果が効き、冬は逆に北の昼が短くなるため、単純に東にある県が有利になるからです。</dd>
+<dt>元日の初日の出のランキングはありますか？</dt><dd><a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年の全国ランキング</a>で47都道府県と名所の時刻を掲載しています。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(1, "toji/")}">冬至${TOJI.y}の全国一覧</a></div>`;
+
+  writePage("ranking/index.html", shell({
+    path: "ranking/", depth: 1,
+    title: "日の出が早い県ランキング｜夏と冬で1位が変わる理由",
+    desc: `日本で日の出が最も早い都道府県を夏至・冬至それぞれでランキング。夏は${g1.pref}（${hhmm(g1.t.sunrise)}）、冬は${t1.pref}（${hhmm(t1.t.sunrise)}）が最速。季節で順位が入れ替わる理由も解説します。`,
+    h1: "日の出が早い県ランキング（夏至・冬至）",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "日の出ランキング", path: "ranking/" }],
+    body,
+  }));
+}
+
+// ---- 解説記事: 日の入りが最も早い日は冬至ではない ----
+function buildEarliestSunsetColumn() {
+  // 冬至を挟む11月〜翌1月を走査して極値の日付を取る
+  const scan = p => {
+    const days = [];
+    for (const [y, m] of [[TOJI.y, 11], [TOJI.y, 12], [TOJI.y + 1, 1]]) {
+      for (let d = 1; d <= daysInMonth(y, m); d++) {
+        const t = dayTimes(y, m, d, p.lat, p.lng);
+        days.push({ y, m, d, ...t });
+      }
+    }
+    return { earliestSet: minBy(days, r => r.sunset), latestRise: maxBy(days, r => r.sunrise) };
+  };
+  const cities = ["hokkaido", "miyagi", "tokyo", "osaka", "fukuoka", "okinawa"].map(s => bySlug[s]);
+  const data = cities.map(p => ({ p, ...scan(p) }));
+  const tokyo = data.find(x => x.p.slug === "tokyo");
+  const tk = tokyo.earliestSet, tr = tokyo.latestRise;
+  const tojiT = dayTimes(TOJI.y, TOJI.m, TOJI.d, tokyo.p.lat, tokyo.p.lng);
+
+  const rows = data.map(({ p, earliestSet, latestRise }) =>
+    `<tr><td><a href="${rel(2, `${p.slug}/`)}">${esc(p.pref)}</a><small>（${esc(p.city)}）</small></td><td>${earliestSet.m}月${earliestSet.d}日 <strong>${hhmm(earliestSet.sunset)}</strong></td><td>${TOJI.m}月${TOJI.d}日</td><td>${latestRise.m}月${latestRise.d}日 <strong>${hhmm(latestRise.sunrise)}</strong></td></tr>`).join("\n");
+
+  const body = `
+<section class="feature"><p>「冬至は一年で昼が最も短い日」— これは正しいのですが、「日の入りが最も早い日」でも「日の出が最も遅い日」でもありません。東京の場合、${TOJI.y}年に日の入りが最も早いのは<strong>${tk.m}月${tk.d}日の${hhmm(tk.sunset)}</strong>で、冬至（${TOJI.m}月${TOJI.d}日、日の入り${hhmm(tojiT.sunset)}）より2週間以上前。逆に日の出が最も遅いのは年が明けた<strong>${tr.m}月${tr.d}日の${hhmm(tr.sunrise)}</strong>です。</p></section>
+<h2>なぜ冬至とずれるのか — 南中時刻が毎日遅れていく</h2>
+<p>原因は「均時差」です。地球の公転軌道が楕円であること、地軸が傾いていることから、太陽が真南に来る時刻（南中時刻）は一年を通じて一定ではありません。12月から1月にかけて、南中時刻は<strong>毎日約30秒ずつ遅く</strong>なっていきます。</p>
+<p>昼の長さ自体は冬至が最小ですが、昼全体の「中心時刻」が毎日後ろへずれていくため、日の入りの極小は冬至より前に、日の出の極大は冬至より後に押し出されます。イメージとしては「縮んでいく昼」が「後ろへ動く台の上」に載っている状態です。</p>
+<h2>全国6都市の実際の日付（${TOJI.y}年）</h2>
+<div class="tbl"><table><thead><tr><th>都市</th><th>日の入りが最も早い日</th><th>冬至</th><th>日の出が最も遅い日</th></tr></thead><tbody>${rows}</tbody></table></div>
+<p>どの都市でも「日の入り最早 → 冬至 → 日の出最遅」の順に並び、南に行くほどずれ幅が大きくなります。沖縄では日の出が最も遅い日が1月中旬まで下がります。</p>
+<h2>夏至でも同じことが起きる</h2>
+<p>向きが逆になるだけで夏も同様です。日の出が最も早いのは夏至の約1週間前、日の入りが最も遅いのは夏至の約1週間後になります。夕方の明るさが「もう夏至を過ぎたのにまだ延びている」ように感じるのはこのためです。</p>
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>冬至は何が「一番」の日なのですか？</dt><dd>昼の長さ（日の出から日の入りまで）が一年で最も短い日です。東京の冬至の昼は${lenStr(tojiT.sunset - tojiT.sunrise)}です。</dd>
+<dt>日の入りが早くなるのはいつまでですか？</dt><dd>東京では${tk.m}月${tk.d}日ごろが底で、それ以降は冬至を待たずに日の入りが遅くなり始めます。年内でも夕方は少しずつ明るくなっていきます。</dd>
+<dt>初日の出は一年で最も遅い日の出ですか？</dt><dd>近いですが厳密には違います。東京では${tr.m}月${tr.d}日ごろの日の出が最も遅く、元日はその数日前にあたります。<a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年の時刻一覧</a>もご覧ください。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "tokyo/12/")}">東京の12月カレンダー</a><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}</a></div>`;
+
+  writePage("column/earliest-sunset/index.html", shell({
+    path: "column/earliest-sunset/", depth: 2,
+    title: `日の入りが最も早い日は冬至ではない｜東京は${tk.m}月${tk.d}日`,
+    desc: `一年で日の入りが最も早いのは冬至（${TOJI.m}月${TOJI.d}日）ではなく、東京では${tk.m}月${tk.d}日の${hhmm(tk.sunset)}。日の出が最も遅いのは年明け${tr.m}月${tr.d}日。均時差によるずれの仕組みを全国6都市の実データで解説します。`,
+    h1: "日の入りが最も早い日は、冬至ではない",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "日の入りが最も早い日", path: "column/earliest-sunset/" }],
+    body,
+  }));
+}
+
 // ---- トップページ ----
 function buildHome() {
   const sections = Object.entries(REGIONS).map(([region, slugs]) => {
@@ -415,7 +579,8 @@ function buildHome() {
     name: "日の出・日の入り時刻カレンダー", url: BASE,
   })}</script>`;
 
-  const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p></section>`;
+  const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p>
+<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a></div></section>`;
   writePage("index.html", shell({
     path: "", depth: 0,
     title: "日の出・日の入り時刻カレンダー｜全国47都道府県",
@@ -452,6 +617,10 @@ const ranked = hatsuData();
 buildHatsuIndex(ranked);
 ranked.forEach((p, i) => buildHatsuPref(p, i + 1, ranked));
 buildMeisho();
+buildSolstice("toji");
+buildSolstice("geshi");
+buildRanking();
+buildEarliestSunsetColumn();
 buildHome();
 build404();
 buildSitemap();
@@ -463,7 +632,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0);
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + 4; // +4: toji/geshi/ranking/column
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
