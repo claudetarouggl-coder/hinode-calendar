@@ -659,7 +659,7 @@ function buildEarliestSunsetColumn() {
 <dt>初日の出は一年で最も遅い日の出ですか？</dt><dd>近いですが厳密には違います。東京では${tr.m}月${tr.d}日ごろの日の出が最も遅く、元日はその数日前にあたります。<a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年の時刻一覧</a>もご覧ください。</dd>
 </dl></section>
 <h2>あわせて見る</h2>
-<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "tokyo/12/")}">東京の12月カレンダー</a><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}</a></div>`;
+<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "tokyo/12/")}">東京の12月カレンダー</a><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(2, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(2, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a></div>`;
 
   writePage("column/earliest-sunset/index.html", shell({
     path: "column/earliest-sunset/", depth: 2,
@@ -698,7 +698,7 @@ ${tojiGoods}
 <dt>ゆずは何個入れればいいですか？</dt><dd>丸ごと5〜6個が香りの目安とされていますが、決まりはなく、家庭の浴槽の大きさに合わせて調整して問題ありません。</dd>
 </dl></section>
 <h2>あわせて見る</h2>
-<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国の日の出・日の入り一覧</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a></div>`;
+<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国の日の出・日の入り一覧</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(2, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a></div>`;
 
   writePage("column/yuzuyu/index.html", shell({
     path: "column/yuzuyu/", depth: 2,
@@ -706,6 +706,79 @@ ${tojiGoods}
     desc: `冬至（${TOJI.y}年は${TOJI.m}月${TOJI.d}日）にゆず湯へ入るのはなぜか、その由来を解説します。「冬至」と「湯治」の語呂合わせや一陽来復の禊としての意味、江戸時代の銭湯が起源とされる説、ゆずの個数や入れ方の目安、冬至かぼちゃとの関係まで詳しく紹介します。`,
     h1: "冬至にゆず湯へ入るのはなぜ？",
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: "冬至のゆず湯", path: "column/yuzuyu/" }],
+    body,
+  }));
+}
+
+// ---- 解説記事: ご来光と初日の出の違い ----
+function buildGoraikoColumn() {
+  const spotLink = slug => {
+    const s = SPOTS.find(x => x.slug === slug);
+    return s ? `<a href="${rel(2, `${HATSU}meisho/${slug}/`)}">${esc(s.name)}（標高${s.elev}m）</a>` : "";
+  };
+  const examples = [spotLink("fujisan"), spotLink("senjojiki"), spotLink("takaosan")].filter(Boolean).join("、");
+
+  const body = `
+<section class="feature"><p>「ご来光」と「初日の出」はどちらも日の出を指す言葉ですが、使われる場面は少し異なるとされています。一般的には、富士山をはじめとする山頂など高い場所で拝む日の出を「ご来光」、元日の朝に迎える日の出を「初日の出」と呼び分けることが多いとされています。</p></section>
+<h2>ご来光と初日の出、呼び方の違い</h2>
+<p>「ご来光」はもともと富士山などの登拝文化に由来する言葉とされ、雲海の上に太陽が昇る神々しい光景を指したのが始まりとされています。そこから、山頂で見る荘厳な日の出全般を指す言葉として広まったと考えられています。一方の「初日の出」は暦の上の元日という「時期」に着目した呼び方で、山でも海でも自宅の窓からでも、元日の朝の日の出であれば「初日の出」と呼ばれます。</p>
+<p>つまり両者は「場所」に着目した言葉か「時期」に着目した言葉かという違いが大きく、厳密な使い分けの決まりがあるわけではありません。元日の朝に山頂でご来光を拝めば、それは「初日の出」でもあり「ご来光」でもある、という重なりも生まれます。慣習的な使い分けとされている点には留意が必要です。</p>
+<p>富士山では山開き期間中、山頂で夜明けを待って拝む行為が古くからの登拝文化と結びついているとされ、これが「ご来光」という言葉の宗教的な色合いの由来と考えられています。太陽そのものを信仰の対象とする山岳信仰の文脈で、山頂から見る日の出には特別な意味が込められてきたとされます。現在では富士山に限らず、高尾山や乗鞍岳など各地の山でも、元日や登山シーズンの日の出を「ご来光」と呼ぶ用法が広く定着しています。</p>
+<h2>標高が高いほど日の出が早い理由</h2>
+<p>ご来光が特別な体験とされる理由の一つに、山頂では平地より数分早く日の出を迎えられることが挙げられます。これは、標高が高くなるほど周囲の地平線が実際の水平線より低い位置に見えるようになり、太陽が地平線から顔を出すタイミングが早まるためです。専門的にはこの角度を「地平線伏角」と呼び、標高が高くなるほど伏角も大きくなって日の出が前倒しになります。標高が数十m〜数百m程度ではその差はわずかですが、標高が3000mを超えるような高所ではまとまった差が生じます。</p>
+${examples ? `<p>当サイトの初日の出名所ページでは、この標高による地平線伏角を補正した時刻を掲載しています。${examples}のページでは、標高補正を反映した実際の計算結果を確認できます。ただし理論上早く日の出を迎えられるとしても、実際には周囲の山並みや雲に水平線が隠れることも多く、見晴らしの良い方角が開けているかどうかも合わせて確認しておくと安心です。</p>` : ""}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>ご来光と初日の出は同じ意味ですか？</dt><dd>同じ日の出を指す場合もありますが、一般的には山頂などで拝む日の出を「ご来光」、元日の朝の日の出を「初日の出」と呼び分けることが多いとされています。</dd>
+<dt>なぜ山の上だと日の出が早く見えるのですか？</dt><dd>標高が高くなるほど周囲の地平線が低く見えるようになる「地平線伏角」の効果で、太陽が顔を出すタイミングが平地より早まるためです。</dd>
+<dt>ご来光は元日以外でも見られますか？</dt><dd>山頂などから見る日の出そのものは年間を通じて見られますが、「ご来光」という言葉は特に元日や山開きの時期の日の出を指して使われることが多いとされています。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a>${SPOTS.length ? `<a href="${rel(2, `${HATSU}meisho/`)}">初日の出の名所${SPOTS.length}選</a>` : ""}<a href="${rel(2, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "column/yuzuyu/")}">コラム：冬至のゆず湯</a></div>`;
+
+  writePage("column/goraiko/index.html", shell({
+    path: "column/goraiko/", depth: 2,
+    title: "ご来光と初日の出の違いとは？呼び方と標高で早く見える理由",
+    desc: "「ご来光」と「初日の出」は何が違うのか。山頂で拝む日の出と元日の日の出という呼び分けの一般的な考え方と、標高が高いほど日の出が早く見える地平線伏角の仕組みを、初日の出名所の計算例とあわせて解説します。",
+    h1: "ご来光と初日の出の違いとは？",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "ご来光と初日の出の違い", path: "column/goraiko/" }],
+    body,
+  }));
+}
+
+// ---- 解説記事: 初日の出の持ち物・場所取りガイド ----
+function buildHatsuhinodeJunbiColumn() {
+  const body = `
+<section class="feature"><p>初日の出は日の出の1時間以上前から屋外で待つことも多く、真冬の明け方は体感以上に冷え込みます。持ち物と場所取りの目安を知っておくと、当日を落ち着いて迎えられます。</p></section>
+<h2>持ち物チェックリスト</h2>
+<p>初日の出の観賞で一般的に用意されるのは、以下のような持ち物とされています。</p>
+<ul style="margin-left:1.2em">
+<li>防寒着（重ね着・ダウン・防寒ズボンなど、風を通さないアウターがあると安心）</li>
+<li>貼るカイロ（背中・お腹・つま先など複数箇所に貼ると効果的とされています）</li>
+<li>懐中電灯やヘッドライト（日の出前の暗い山道・砂浜の移動用に）</li>
+<li>温かい飲み物（保温ボトルに入れた白湯やお茶）</li>
+<li>折りたたみチェアやレジャーシート（長時間の待機を楽にします）</li>
+<li>モバイルバッテリー（撮影や写真共有で消耗しやすいため）</li>
+</ul>
+<p>このほか、混雑するスポットではトイレの位置や営業時間があらかじめ限られている場合もあるため、現地の観光協会や自治体のサイトで事前に確認しておくと安心です。積雪や路面凍結が予想される地域では、防寒具に加えて滑りにくい靴や手袋も準備しておくとよいとされています。</p>
+<h2>場所取りの目安時間</h2>
+<p>人気の初日の出スポットでは、日の出の1〜2時間前から場所取りが始まるのが一般的とされています。特に有名な岬や高台では元日未明から人が集まり始めることも珍しくありません。空が白み始める「薄明」は日の出の30分ほど前からで、この時間帯には周囲がかなり賑わいます。遅くとも薄明が始まる時刻までには到着しておくと、落ち着いて日の出を待てるとされています。都道府県ごとの薄明開始・初日の出の時刻は<a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年の全国一覧</a>で確認できます。</p>
+<h2>安全に関する注意点</h2>
+<p>山道や海岸沿いは日の出前は真っ暗で、足元が見えにくく転倒や滑落の危険があります。懐中電灯やヘッドライトを必ず携行し、できるだけ複数人で行動するのが望ましいとされています。海岸や岬では、波をかぶりやすい防波堤や岩場への立ち入りは避けましょう。また、車内で暖房をつけたまま長時間停車する「防寒アイドリング」は、地域の条例で規制されている場合があるほか、密閉された車内での一酸化炭素中毒のリスクも指摘されています。エンジンをかけたまま車内で待機する場合は、こまめな換気や休憩を心がけてください。積雪の予報が出ている地域では、路面凍結によるスリップにも注意し、無理のない移動計画を立てることが大切です。</p>
+${affiliateBlock()}
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>場所取りはいつから始めればいいですか？</dt><dd>人気スポットでは日の出の1〜2時間前から場所取りが始まるとされています。空が白み始める薄明開始（日の出の約30分前）までには到着しておくと安心です。</dd>
+<dt>車で暖房をつけながら待つのは問題ありませんか？</dt><dd>車内暖房のためのアイドリングは自治体の条例で規制されている場合があるほか、換気不足による一酸化炭素中毒のリスクも指摘されています。エンジンをかけたまま待機する場合は換気に注意してください。</dd>
+<dt>モバイルバッテリーは本当に必要ですか？</dt><dd>冬の屋外では気温低下でスマートフォンのバッテリー消耗が早まりやすく、撮影や写真共有も重なるため、用意しておくと安心とされています。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(2, "")}">都道府県別の日の出・日の入り時刻一覧</a><a href="${rel(2, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "column/yuzuyu/")}">コラム：冬至のゆず湯</a></div>`;
+
+  writePage("column/hatsuhinode-junbi/index.html", shell({
+    path: "column/hatsuhinode-junbi/", depth: 2,
+    title: "初日の出の持ち物・場所取りガイド｜防寒対策と注意点",
+    desc: "初日の出観賞に必要な持ち物チェックリスト（防寒着・カイロ・懐中電灯・保温ボトルなど）と、人気スポットの場所取りの目安時間、山道や車内待機での安全上の注意点をまとめて解説します。",
+    h1: "初日の出の持ち物・場所取りガイド",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "初日の出の持ち物・場所取りガイド", path: "column/hatsuhinode-junbi/" }],
     body,
   }));
 }
@@ -730,7 +803,7 @@ function buildHome() {
   })}</script>`;
 
   const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p>
-<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(0, "column/yuzuyu/")}">コラム：冬至のゆず湯</a></div></section>`;
+<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(0, "column/yuzuyu/")}">コラム：冬至のゆず湯</a><a href="${rel(0, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(0, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a></div></section>`;
   writePage("index.html", shell({
     path: "", depth: 0,
     title: "日の出・日の入り時刻カレンダー｜全国47都道府県",
@@ -772,6 +845,8 @@ buildSolstice("geshi");
 buildRanking();
 buildEarliestSunsetColumn();
 buildYuzuyuColumn();
+buildGoraikoColumn();
+buildHatsuhinodeJunbiColumn();
 buildHome();
 build404();
 buildSitemap();
@@ -783,7 +858,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + (SPOTS.length ? areaPageCount : 0) + 5; // +5: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + (SPOTS.length ? areaPageCount : 0) + 7; // +7: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)/column(goraiko)/column(hatsuhinode-junbi)
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
