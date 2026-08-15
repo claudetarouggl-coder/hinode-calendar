@@ -409,7 +409,7 @@ function buildMeisho() {
 ${affiliateBlock()}
 <h2>名所別 初日の出時刻（早い順）</h2>
 <div class="tbl"><table><thead><tr><th>#</th><th>名所</th><th>都道府県</th><th>標高</th><th>初日の出</th><th>メモ</th></tr></thead><tbody>${rows}</tbody></table></div>
-<section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。</section>
+<section class="note">時刻は各地点の緯度経度・標高から計算した理論値です。実際には水平線の雲や周囲の地形の影響を受けます。標高補正は開けた地平線を仮定しています。山岳・高原のスポットは冬期の道路閉鎖や積雪で立ち入れない場合があります。必ず事前に開放状況・アクセス可否をご確認ください。</section>
 <p><a href="${rel(3, HATSU)}">都道府県別の初日の出時刻一覧はこちら</a></p>`;
   writePage(`${HATSU}meisho/index.html`, shell({
     path: `${HATSU}meisho/`, depth: 3,
