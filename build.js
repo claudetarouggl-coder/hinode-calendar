@@ -12,6 +12,20 @@ try { SPOTS = require("./lib/spots"); }
 catch (e) { if (e.code !== "MODULE_NOT_FOUND") throw e; /* 名所データ未作成のときだけスキップ */ }
 
 const BASE = "https://claudetarouggl-coder.github.io/hinode-calendar/";
+// 姉妹サイト相互リンク（自サイトは除外）
+const RELATED_SITES = [
+  ["https://claudetarouggl-coder.github.io/kyou-no-taiyo/", "きょうの太陽"],
+  ["https://claudetarouggl-coder.github.io/hinode-calendar/", "日の出・日の入りカレンダー"],
+  ["https://claudetarouggl-coder.github.io/furusato-keisan/", "ふるさと納税 上限額計算"],
+  ["https://claudetarouggl-coder.github.io/nenrei-hayami/", "年齢早見表"],
+  ["https://claudetarouggl-coder.github.io/rokuyo-calendar/", "六曜カレンダー"],
+  ["https://claudetarouggl-coder.github.io/tester-match/", "テスターマッチ"],
+  ["https://claudetarouggl-coder.github.io/houji-hayami/", "法事・回忌早見表"],
+  ["https://claudetarouggl-coder.github.io/pet-nenrei/", "犬・猫の年齢換算"],
+  ["https://claudetarouggl-coder.github.io/nemuri-keisan/", "睡眠サイクル計算"],
+];
+const RELATED_NAV = `<p class="related">姉妹サイト: ${RELATED_SITES.filter(([u]) => u !== BASE)
+  .map(([u, n]) => `<a href="${u}" rel="noopener">${n}</a>`).join("・")}</p>`;
 const GA_ID = "G-4K8SR10PRC";
 const OUT = path.join(__dirname, "docs");
 
@@ -204,6 +218,7 @@ ${body}
 <footer>
 掲載時刻はNOAAの太陽位置計算式による理論値です（海抜0m・平坦な地平線を仮定、誤差±1分程度）。<br>
 観測点は各都道府県庁所在地の緯度経度を使用しています。公的な値は<a href="https://eco.mtk.nao.ac.jp/koyomi/" rel="noopener">国立天文台 暦計算室</a>をご確認ください。
+${RELATED_NAV}
 </footer>
 </main>
 ${extraScript}
