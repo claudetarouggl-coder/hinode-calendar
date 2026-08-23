@@ -3,7 +3,8 @@
 // 生成物: docs/ 以下に index.html + 47県ハブ + 47×12月ページ + sitemap.xml + 404.html
 const fs = require("fs");
 const path = require("path");
-const { dayTimes, hhmm, daysInMonth, solarBasis } = require("./lib/solar");
+const assert = require("assert");
+const { dayTimes, hhmm, daysInMonth, solarBasis, JST_OFFSET_MIN } = require("./lib/solar");
 const { PREFS, REGIONS, NEIGHBORS } = require("./lib/prefectures");
 const AFFILIATES = require("./lib/affiliates");
 let SPOTS = [];
@@ -81,6 +82,47 @@ function nextSolstice(kind) {
 }
 const TOJI = nextSolstice("toji");
 const GESHI = nextSolstice("geshi");
+
+// 次に来る秋分・春分（エバーグリーンURL /shubun/ /shunbun/ の主要年）
+// 太陽赤緯のゼロクロス = 太陽視黄経0°/180°の瞬間（decl=asin(sin(eps)*sin(lambda))、lambda=0/180でdecl=0）と数学的に一致するため、
+// 至点と同じ流儀の走査で厳密に求められる。10分刻みでサンプリングした前後2点を線形補間し、
+// ゼロクロス瞬間のJST暦日を特定する（サンプル境界に丸めると日付が±1日ずれる恐れがあるため）。
+function equinoxDate(y, kind) {
+  const m = kind === "shunbun" ? 3 : 9; // shunbun=春分(3月), shubun=秋分(9月)
+  let prevJd = null, prevDecl = null;
+  for (let d = 15; d <= 27; d++) {
+    for (let min = 0; min < 1440; min += 10) {
+      const jd = (Date.UTC(y, m - 1, d) + (min - 540) * 60000) / 86400000 + 2440587.5;
+      const { decl } = solarBasis(jd);
+      if (prevDecl !== null) {
+        const crossed = kind === "shunbun" ? (prevDecl < 0 && decl >= 0) : (prevDecl >= 0 && decl < 0);
+        if (crossed) {
+          const frac = -prevDecl / (decl - prevDecl);
+          const crossJd = prevJd + frac * (jd - prevJd);
+          const dt = new Date((crossJd - 2440587.5) * 86400000 + JST_OFFSET_MIN * 60000);
+          return { y, m, d: dt.getUTCDate() };
+        }
+      }
+      prevJd = jd; prevDecl = decl;
+    }
+  }
+  throw new Error(`equinox not found: ${y} ${kind}`);
+}
+// 検証: 国立天文台の公表値（暦要項）との一致を確認
+// 2026年秋分の日=9月23日: https://eco.mtk.nao.ac.jp/koyomi/yoko/2026/rekiyou262.html
+// 2027年春分の日=3月21日: 日本経済新聞「来年の春分、3月21日に 国立天文台が暦要項」
+assert.deepStrictEqual(equinoxDate(2026, "shubun"), { y: 2026, m: 9, d: 23 },
+  "2026年秋分の日の計算が国立天文台の公表値(9/23)と不一致");
+assert.deepStrictEqual(equinoxDate(2027, "shunbun"), { y: 2027, m: 3, d: 21 },
+  "2027年春分の日の計算が国立天文台の公表値(3/21)と不一致");
+
+function nextEquinox(kind) {
+  const cur = equinoxDate(TODAY.y, kind);
+  if (cur.m > TODAY.m || (cur.m === TODAY.m && cur.d >= TODAY.d)) return cur;
+  return equinoxDate(TODAY.y + 1, kind);
+}
+const SHUNBUN = nextEquinox("shunbun");
+const SHUBUN = nextEquinox("shubun");
 
 // ---- HTMLヘルパー ----
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -246,6 +288,8 @@ ${dayRowsHtml(rm, false)}
 ${m === 1 ? `<p><a href="${rel(2, `${HATSU}${p.slug}/`)}">→ ${esc(p.pref)}の初日の出${HATSU_YEAR}年（時刻・薄明・全国ランキング）</a></p>` : ""}
 ${m === 12 ? `<p><a href="${rel(2, "toji/")}">→ 冬至${TOJI.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
 ${m === 6 ? `<p><a href="${rel(2, "geshi/")}">→ 夏至${GESHI.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
+${m === 3 ? `<p><a href="${rel(2, "shunbun/")}">→ 春分の日${SHUNBUN.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
+${m === 9 ? `<p><a href="${rel(2, "shubun/")}">→ 秋分の日${SHUBUN.y}年の日の出・日の入り 全国一覧</a></p>` : ""}
 <h2>近隣県の${m}月</h2><div class="links">${neighborLinks}</div>`;
 
   writePage(`${p.slug}/${mm}/index.html`, shell({
@@ -333,6 +377,13 @@ function affiliateBlock() {
   const items = AFFILIATES.goods.map(g =>
     `<li><a href="${esc(g.url)}" rel="sponsored noopener" target="_blank">${esc(g.label)}</a>${g.note ? ` — ${esc(g.note)}` : ""}</li>`).join("\n");
   return `<section class="note"><h2>初日の出の持ち物・準備<small>（広告を含みます）</small></h2><ul style="margin-left:1.2em">${items}</ul></section>`;
+}
+// 汎用アフィリエイトブロック（見出し・商品リストを指定）。noteが無い商品はラベルのみ表示
+function affiliateSection(items, heading) {
+  if (!items || !items.length) return "";
+  const li = items.map(g =>
+    `<li><a href="${esc(g.url)}" rel="sponsored noopener" target="_blank">${esc(g.label)}</a>${g.note ? ` — ${esc(g.note)}` : ""}</li>`).join("\n");
+  return `<section class="note"><h2>${esc(heading)}<small>（広告を含みます）</small></h2><ul style="margin-left:1.2em">${li}</ul></section>`;
 }
 
 function hatsuData() {
@@ -571,7 +622,7 @@ ${tojiGoods}
 <div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>南中</th><th>日の入り</th><th>昼の長さ</th></tr></thead><tbody>${rows}</tbody></table></div>
 <section class="faq"><h2>よくある質問</h2><dl>${faq}</dl></section>
 <h2>あわせて見る</h2>
-<div class="links">${kind === "toji" ? `<a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}年の全国一覧</a><a href="${rel(1, "column/yuzuyu/")}">ゆず湯の由来と入り方</a>` : `<a href="${rel(1, "toji/")}">冬至${TOJI.y}年の全国一覧</a>`}<a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
+<div class="links">${kind === "toji" ? `<a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年 全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}年の全国一覧</a><a href="${rel(1, "column/yuzuyu/")}">ゆず湯の由来と入り方</a>` : `<a href="${rel(1, "toji/")}">冬至${TOJI.y}年の全国一覧</a>`}<a href="${rel(1, "shunbun/")}">春分の日${SHUNBUN.y}年の全国一覧</a><a href="${rel(1, "shubun/")}">秋分の日${SHUBUN.y}年の全国一覧</a><a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
 
   writePage(`${kind}/index.html`, shell({
     path: `${kind}/`, depth: 1,
@@ -579,6 +630,127 @@ ${tojiGoods}
     desc: `${s.y}年の${name}は${s.m}月${s.d}日。一年で最も昼が${kind === "toji" ? "短い" : "長い"}日の日の出・日の入り・南中時刻・昼の長さを全国47都道府県で一覧比較。東京の昼の長さは${lenStr(tokyo.len)}です。`,
     h1: `${name}${s.y}年（${s.m}月${s.d}日）の日の出・日の入り時刻`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: `${name}${s.y}`, path: `${kind}/` }],
+    body,
+  }));
+}
+
+// ---- 秋分・春分ページ（エバーグリーンURL、主要年は次の該当日） ----
+function buildEquinox(kind) {
+  const s = kind === "shunbun" ? SHUNBUN : SHUBUN;
+  const name = kind === "shunbun" ? "春分" : "秋分";
+  const season = kind === "shunbun" ? "春" : "秋";
+  const wagashi = kind === "shunbun" ? "ぼたもち" : "おはぎ";
+  const wday = WDAYS[new Date(Date.UTC(s.y, s.m - 1, s.d)).getUTCDay()];
+  const rows47 = PREFS.map(p => {
+    const t = dayTimes(s.y, s.m, s.d, p.lat, p.lng);
+    return { ...p, t, len: t.sunset - t.sunrise };
+  });
+  const sorted = [...rows47].sort((a, b) => a.len - b.len); // 昼の長さが短い順
+  const tokyo = rows47.find(r => r.slug === "tokyo");
+  const diffMin = Math.round((tokyo.len - 720) * 10) / 10;
+
+  const rows = sorted.map((p, i) =>
+    `<tr><td>${i + 1}</td><td><a href="${rel(1, `${p.slug}/`)}">${esc(p.pref)}</a><small>（${esc(p.city)}）</small></td><td><strong>${hhmm(p.t.sunrise)}</strong></td><td>${hhmm(p.t.noon)}</td><td><strong>${hhmm(p.t.sunset)}</strong></td><td>${lenStr(p.len)}</td></tr>`).join("\n");
+
+  const intro = `${s.y}年の${name}の日は${s.m}月${s.d}日（${wday}曜日）です。${name}は太陽がほぼ真東から昇り真西に沈み、昼と夜の長さがほぼ同じになる日として知られていますが、実際に計算すると東京の昼の長さは${lenStr(tokyo.len)}で、夜より約${diffMin}分長くなっています。ずれる理由は<a href="${rel(1, "column/equinox-daylength/")}">昼と夜の長さのコラム</a>で詳しく解説しています。${name}の日は${season}のお彼岸の中日にあたり、前後3日をあわせた7日間が彼岸期間とされています。`;
+
+  const eqGoods = affiliateSection(AFFILIATES[kind], `${season}のお彼岸のお供え`);
+
+  const faq = `
+<dt>${s.y}年の${name}の日はいつですか？</dt><dd>${s.y}年${s.m}月${s.d}日（${wday}曜日）です。</dd>
+<dt>${name}の日は昼と夜の長さが同じですか？</dt><dd>厳密には同じではありません。東京では昼のほうが夜より約${diffMin}分長くなります。日の出・日の入りが太陽の上端を基準に定義されていることと、大気差で太陽が浮き上がって見えることが理由です。詳しくは<a href="${rel(1, "column/equinox-daylength/")}">昼と夜の長さのコラム</a>をご覧ください。</dd>
+<dt>${s.y}年の${name}の日は確定していますか？</dt><dd>${name}の日は国立天文台が太陽の動きから算出し、前年2月に発表する「暦要項」の官報掲載で正式に決まります。本ページの日付は天文計算に基づく理論値で、正式決定前の年については予測値としてご利用ください。</dd>
+<dt>${name}の日は${wagashi}を食べる日ですか？</dt><dd>${season}のお彼岸には${wagashi}をお供えする・食べる習慣があります。${name}の日はその彼岸の中日にあたります。</dd>`;
+
+  const otherKind = kind === "shunbun" ? "shubun" : "shunbun";
+  const otherName = kind === "shunbun" ? "秋分" : "春分";
+  const otherS = kind === "shunbun" ? SHUBUN : SHUNBUN;
+  const mm2 = String(s.m).padStart(2, "0");
+
+  const body = `
+<section class="feature"><p>${intro}</p></section>
+${eqGoods}
+<h2>${name}${s.y}年 全国47都道府県の日の出・日の入り（昼の長さが短い順）</h2>
+<div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>日の出</th><th>南中</th><th>日の入り</th><th>昼の長さ</th></tr></thead><tbody>${rows}</tbody></table></div>
+<section class="faq"><h2>よくある質問</h2><dl>${faq}</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(1, `${otherKind}/`)}">${otherName}の日${otherS.y}年の全国一覧</a><a href="${rel(1, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(1, "column/equinox-daylength/")}">コラム：昼と夜の長さは同じではない</a><a href="${rel(1, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(1, `tokyo/${mm2}/`)}">東京の${s.m}月カレンダー</a></div>`;
+
+  writePage(`${kind}/index.html`, shell({
+    path: `${kind}/`, depth: 1,
+    title: `${name}の日${s.y}年はいつ？${s.m}月${s.d}日の日の出・日の入り時刻 全国一覧`,
+    desc: `${s.y}年の${name}の日は${s.m}月${s.d}日。日の出・日の入り・南中時刻・昼の長さを全国47都道府県で一覧比較。東京の昼の長さは${lenStr(tokyo.len)}で、夜より約${diffMin}分長くなります。`,
+    h1: `${name}の日 ${s.y}年（${s.m}月${s.d}日）の日の出・日の入り時刻`,
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: `${name}の日${s.y}`, path: `${kind}/` }],
+    body,
+  }));
+}
+
+// ---- 解説記事: 春分・秋分、昼と夜の長さは同じではない ----
+function buildEquinoxDaylengthColumn() {
+  const tokyo = bySlug.tokyo;
+  const shubunT = dayTimes(SHUBUN.y, SHUBUN.m, SHUBUN.d, tokyo.lat, tokyo.lng);
+  const shubunLen = shubunT.sunset - shubunT.sunrise;
+  const shubunDiff = Math.round((shubunLen - 720) * 10) / 10;
+  const shunbunT = dayTimes(SHUNBUN.y, SHUNBUN.m, SHUNBUN.d, tokyo.lat, tokyo.lng);
+  const shunbunLen = shunbunT.sunset - shunbunT.sunrise;
+  const shunbunDiff = Math.round((shunbunLen - 720) * 10) / 10;
+
+  // 秋分・春分の前後10日を走査し、東京の昼の長さが720分(12時間)に最も近い日を探す
+  const nearestEqual = eq => {
+    let best = null;
+    for (let off = -10; off <= 10; off++) {
+      const dt = new Date(Date.UTC(eq.y, eq.m - 1, eq.d + off));
+      const y = dt.getUTCFullYear(), m = dt.getUTCMonth() + 1, d = dt.getUTCDate();
+      const t = dayTimes(y, m, d, tokyo.lat, tokyo.lng);
+      const diff = t.sunset - t.sunrise - 720;
+      if (!best || Math.abs(diff) < Math.abs(best.diff)) best = { y, m, d, diff, off };
+    }
+    return best;
+  };
+  const shubunNear = nearestEqual(SHUBUN);
+  const shunbunNear = nearestEqual(SHUNBUN);
+
+  // 秋分前後±5日の昼の長さテーブル（東京）
+  const tableDays = [];
+  for (let off = -5; off <= 5; off++) {
+    const dt = new Date(Date.UTC(SHUBUN.y, SHUBUN.m - 1, SHUBUN.d + off));
+    const y = dt.getUTCFullYear(), m = dt.getUTCMonth() + 1, d = dt.getUTCDate();
+    const t = dayTimes(y, m, d, tokyo.lat, tokyo.lng);
+    tableDays.push({ m, d, len: t.sunset - t.sunrise, off });
+  }
+  const rows = tableDays.map(r => {
+    const isNearest = r.off === shubunNear.off;
+    const diffStr = `${r.len >= 720 ? "+" : "−"}${Math.abs(Math.round((r.len - 720) * 10) / 10)}分`;
+    return `<tr${isNearest ? ' class="today-row"' : ""}><td>${r.m}月${r.d}日${r.off === 0 ? "<br><small>秋分</small>" : ""}</td><td>${lenStr(r.len)}</td><td>${diffStr}</td></tr>`;
+  }).join("\n");
+
+  const body = `
+<section class="feature"><p>${SHUBUN.y}年の秋分の日（${SHUBUN.m}月${SHUBUN.d}日）、東京の昼の長さは${lenStr(shubunLen)}で、夜より約${shubunDiff}分長い計算になります。${SHUNBUN.y}年の春分の日（${SHUNBUN.m}月${SHUNBUN.d}日）も同様に、昼は夜より約${shunbunDiff}分長くなります。「春分・秋分は昼と夜の長さが同じ」というのはよく知られた話ですが、実際に計算すると昼のほうがわずかに長いのです。</p></section>
+<h2>理由① 日の出・日の入りは太陽の「端」が基準</h2>
+<p>日の出・日の入りの時刻は、太陽の中心ではなく、太陽の上端が地平線に触れる瞬間として定義されています。太陽の視直径はおよそ32分角（0.53度）で、その半径にあたる約16分角の分だけ、太陽の中心が地平線に達するより前に「日の出」となり、地平線に達したあとに「日の入り」となります。</p>
+<h2>理由② 大気差で太陽が浮き上がって見える</h2>
+<p>もう一つの要因は大気差（大気による光の屈折）です。地平線付近では大気の密度差によって光が曲がり、実際の位置より約34分角も高い位置に太陽があるように見えます。この浮き上がり効果によって、太陽が幾何学的にはまだ地平線の下にあっても見かけ上は地平線の上に顔を出すため、日の出はさらに早く、日の入りはさらに遅くなります。</p>
+<h2>合計するとどのくらい昼が長くなるか</h2>
+<p>視半径と大気差をあわせると、日の出・日の入りはそれぞれ地平線から約50分角（0.83度）浮き上がった状態で定義されていることになります。太陽の高度が変化する速さは季節や緯度によって異なるため単純な換算はできませんが、実際に本サイトの計算エンジンで東京の秋分・春分の昼の長さを求めると、上記の通り約${Math.min(shubunDiff, shunbunDiff)}〜${Math.max(shubunDiff, shunbunDiff)}分ほど昼が長くなっています。</p>
+<h2>本当に昼と夜が同じ長さになるのはいつか</h2>
+<p>秋分・春分そのものではなく、その前後の日に昼の長さが12時間ちょうどに最も近づきます。${SHUBUN.y}年の東京では、秋分（${SHUBUN.m}月${SHUBUN.d}日）の${shubunNear.off}日後にあたる${shubunNear.m}月${shubunNear.d}日ごろに昼の長さが最も12時間に近づきます（下表）。${SHUNBUN.y}年の春分（${SHUNBUN.m}月${SHUNBUN.d}日）では、${Math.abs(shunbunNear.off)}日前の${shunbunNear.m}月${shunbunNear.d}日ごろが最も12時間に近い日です。「春分の数日前」「秋分の数日後」に昼夜がほぼ同じ長さになるといわれることがあるのはこのためです。</p>
+<h2>秋分前後の昼の長さ（東京）</h2>
+<div class="tbl"><table><thead><tr><th>日付</th><th>昼の長さ</th><th>12時間との差</th></tr></thead><tbody>${rows}</tbody></table></div>
+<section class="faq"><h2>よくある質問</h2><dl>
+<dt>秋分・春分は本当に昼と夜が同じ長さなのですか？</dt><dd>厳密には違います。東京の場合、秋分は昼のほうが約${shubunDiff}分、春分は約${shunbunDiff}分長くなります。日の出・日の入りの定義（太陽の上端基準）と大気差が理由です。</dd>
+<dt>なぜ日の出・日の入りは太陽の中心ではなく端を基準にするのですか？</dt><dd>肉眼で「太陽が出た」「沈んだ」と判断しやすいのが太陽の上端だからです。国立天文台をはじめ、世界的にこの定義が使われています。</dd>
+<dt>昼と夜が本当に同じ長さになるのはいつですか？</dt><dd>${SHUBUN.y}年の東京では秋分の${shubunNear.off}日後の${shubunNear.m}月${shubunNear.d}日ごろ、${SHUNBUN.y}年の春分では${Math.abs(shunbunNear.off)}日前の${shunbunNear.m}月${shunbunNear.d}日ごろです。</dd>
+</dl></section>
+<h2>あわせて見る</h2>
+<div class="links"><a href="${rel(2, "shubun/")}">秋分の日${SHUBUN.y}年 全国一覧</a><a href="${rel(2, "shunbun/")}">春分の日${SHUNBUN.y}年 全国一覧</a><a href="${rel(2, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a></div>`;
+
+  writePage("column/equinox-daylength/index.html", shell({
+    path: "column/equinox-daylength/", depth: 2,
+    title: `春分・秋分、昼と夜の長さは同じではない｜東京は昼が約${shubunDiff}分長い`,
+    desc: `春分・秋分は「昼と夜の長さが同じ日」といわれますが、実際には昼のほうが長くなります。${SHUBUN.y}年の秋分、東京の昼の長さは${lenStr(shubunLen)}で夜より約${shubunDiff}分長い計算に。太陽の視半径と大気差が理由となる仕組みと、実際に昼夜が同じ長さになる日を計算値つきで解説します。`,
+    h1: "春分・秋分、昼と夜の長さは同じではない",
+    breadcrumbs: [{ name: "ホーム", path: "" }, { name: "昼と夜の長さは同じではない", path: "column/equinox-daylength/" }],
     body,
   }));
 }
@@ -609,7 +781,7 @@ ${table(tojiRank)}
 <dt>元日の初日の出のランキングはありますか？</dt><dd><a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}年の全国ランキング</a>で47都道府県と名所の時刻を掲載しています。</dd>
 </dl></section>
 <h2>あわせて見る</h2>
-<div class="links"><a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(1, "toji/")}">冬至${TOJI.y}の全国一覧</a></div>`;
+<div class="links"><a href="${rel(1, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(1, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(1, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(1, "shunbun/")}">春分の日${SHUNBUN.y}年の全国一覧</a><a href="${rel(1, "shubun/")}">秋分の日${SHUBUN.y}年の全国一覧</a></div>`;
 
   writePage("ranking/index.html", shell({
     path: "ranking/", depth: 1,
@@ -659,7 +831,7 @@ function buildEarliestSunsetColumn() {
 <dt>初日の出は一年で最も遅い日の出ですか？</dt><dd>近いですが厳密には違います。東京では${tr.m}月${tr.d}日ごろの日の出が最も遅く、元日はその数日前にあたります。<a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}年の時刻一覧</a>もご覧ください。</dd>
 </dl></section>
 <h2>あわせて見る</h2>
-<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "tokyo/12/")}">東京の12月カレンダー</a><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(2, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(2, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a></div>`;
+<div class="links"><a href="${rel(2, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(2, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(2, "shunbun/")}">春分の日${SHUNBUN.y}年の全国一覧</a><a href="${rel(2, "shubun/")}">秋分の日${SHUBUN.y}年の全国一覧</a><a href="${rel(2, "tokyo/12/")}">東京の12月カレンダー</a><a href="${rel(2, HATSU)}">初日の出${HATSU_YEAR}</a><a href="${rel(2, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(2, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a><a href="${rel(2, "column/equinox-daylength/")}">コラム：昼と夜の長さは同じではない</a></div>`;
 
   writePage("column/earliest-sunset/index.html", shell({
     path: "column/earliest-sunset/", depth: 2,
@@ -803,7 +975,7 @@ function buildHome() {
   })}</script>`;
 
   const hatsuPromo = `<section class="feature"><p>🌅 <a href="${rel(0, HATSU)}"><strong>初日の出${HATSU_YEAR}年 全国47都道府県の時刻一覧</strong></a>${SPOTS.length ? ` ／ <a href="${rel(0, `${HATSU}meisho/`)}">名所${SPOTS.length}選（標高補正つき）</a>` : ""}</p>
-<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(0, "column/yuzuyu/")}">コラム：冬至のゆず湯</a><a href="${rel(0, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(0, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a></div></section>`;
+<div class="links"><a href="${rel(0, "toji/")}">冬至${TOJI.y}の全国一覧</a><a href="${rel(0, "geshi/")}">夏至${GESHI.y}の全国一覧</a><a href="${rel(0, "shunbun/")}">春分の日${SHUNBUN.y}年の全国一覧</a><a href="${rel(0, "shubun/")}">秋分の日${SHUBUN.y}年の全国一覧</a><a href="${rel(0, "ranking/")}">日の出が早い県ランキング</a><a href="${rel(0, "column/earliest-sunset/")}">コラム：日の入りが最も早い日は冬至ではない</a><a href="${rel(0, "column/yuzuyu/")}">コラム：冬至のゆず湯</a><a href="${rel(0, "column/goraiko/")}">コラム：ご来光と初日の出の違い</a><a href="${rel(0, "column/hatsuhinode-junbi/")}">コラム：初日の出の持ち物・場所取りガイド</a><a href="${rel(0, "column/equinox-daylength/")}">コラム：昼と夜の長さは同じではない</a></div></section>`;
   writePage("index.html", shell({
     path: "", depth: 0,
     title: "日の出・日の入り時刻カレンダー｜全国47都道府県",
@@ -842,11 +1014,14 @@ ranked.forEach((p, i) => buildHatsuPref(p, i + 1, ranked));
 buildMeisho();
 buildSolstice("toji");
 buildSolstice("geshi");
+buildEquinox("shunbun");
+buildEquinox("shubun");
 buildRanking();
 buildEarliestSunsetColumn();
 buildYuzuyuColumn();
 buildGoraikoColumn();
 buildHatsuhinodeJunbiColumn();
+buildEquinoxDaylengthColumn();
 buildHome();
 build404();
 buildSitemap();
@@ -858,7 +1033,7 @@ for (const t of linkTargets) {
   const f = path.join(OUT, t, "index.html");
   if (!fs.existsSync(f)) throw new Error(`BROKEN LINK TARGET: ${t}`);
 }
-const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + (SPOTS.length ? areaPageCount : 0) + 7; // +7: toji/geshi/ranking/column(earliest-sunset)/column(yuzuyu)/column(goraiko)/column(hatsuhinode-junbi)
+const expected = 1 + 47 + 47 * 12 + 1 + 47 + (SPOTS.length ? 1 : 0) + SPOTS.length + (SPOTS.length ? areaPageCount : 0) + 10; // +10: toji/geshi/shunbun/shubun/ranking/column(earliest-sunset)/column(yuzuyu)/column(goraiko)/column(hatsuhinode-junbi)/column(equinox-daylength)
 if (emittedUrls.length !== expected) throw new Error(`page count ${emittedUrls.length} != ${expected}`);
 if (!emittedUrls.every(u => u.startsWith(BASE))) throw new Error("URL outside BASE");
 console.log(`OK: ${emittedUrls.length} pages + 404 + sitemap generated for ${TODAY_STR}`);
