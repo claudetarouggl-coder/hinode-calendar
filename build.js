@@ -1015,6 +1015,8 @@ ${emittedUrls.map(u => `  <url><loc>${u}</loc><lastmod>${TODAY_STR}</lastmod></u
 </urlset>
 `;
   fs.writeFileSync(path.join(OUT, "sitemap.xml"), xml);
+  // IndexNow キーファイル（公開前提のキー。keyLocation はサイトのサブパス配下である必要がある）
+  fs.writeFileSync(path.join(OUT, "f4d36824ae452bf2bac90928b2b506e8.txt"), "f4d36824ae452bf2bac90928b2b506e8");
 }
 
 // ---- 実行 ----
