@@ -641,8 +641,8 @@ ${tojiGoods}
 
   writePage(`${kind}/index.html`, shell({
     path: `${kind}/`, depth: 1,
-    title: `${name}${s.y}年はいつ？${s.m}月${s.d}日の日の出・日の入り時刻 全国一覧`,
-    desc: `${s.y}年の${name}は${s.m}月${s.d}日。一年で最も昼が${kind === "toji" ? "短い" : "長い"}日の日の出・日の入り・南中時刻・昼の長さを全国47都道府県で一覧比較。東京の昼の長さは${lenStr(tokyo.len)}です。`,
+    title: `${name}${s.y}年は${s.m}月${s.d}日｜日の出${hhmm(tokyo.t.sunrise)}・日の入り${hhmm(tokyo.t.sunset)}（東京）全国47都道府県の時刻一覧`,
+    desc: `${s.y}年の${name}は${s.m}月${s.d}日。東京の日の出は${hhmm(tokyo.t.sunrise)}、日の入りは${hhmm(tokyo.t.sunset)}、昼の長さは${lenStr(tokyo.len)}で一年で最も${kind === "toji" ? "短い" : "長い"}日。日の出・日の入り・南中時刻を全国47都道府県で一覧比較できます。`,
     h1: `${name}${s.y}年（${s.m}月${s.d}日）の日の出・日の入り時刻`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: `${name}${s.y}`, path: `${kind}/` }],
     body,
@@ -693,8 +693,8 @@ ${eqGoods}
 
   writePage(`${kind}/index.html`, shell({
     path: `${kind}/`, depth: 1,
-    title: `${name}の日${s.y}年はいつ？${s.m}月${s.d}日の日の出・日の入り時刻 全国一覧`,
-    desc: `${s.y}年の${name}の日は${s.m}月${s.d}日。日の出・日の入り・南中時刻・昼の長さを全国47都道府県で一覧比較。東京の昼の長さは${lenStr(tokyo.len)}で、夜より約${diffMin}分長くなります。`,
+    title: `${name}の日${s.y}年は${s.m}月${s.d}日(${wday})｜日の出${hhmm(tokyo.t.sunrise)}・日の入り${hhmm(tokyo.t.sunset)}（東京）全国の時刻一覧`,
+    desc: `${s.y}年の${name}の日は${s.m}月${s.d}日（${wday}曜日）。東京の日の出は${hhmm(tokyo.t.sunrise)}、日の入りは${hhmm(tokyo.t.sunset)}、昼の長さは${lenStr(tokyo.len)}で夜より約${diffMin}分長くなります。日の出・日の入り・南中時刻を全国47都道府県で一覧比較。`,
     h1: `${name}の日 ${s.y}年（${s.m}月${s.d}日）の日の出・日の入り時刻`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: `${name}の日${s.y}`, path: `${kind}/` }],
     body,
