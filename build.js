@@ -421,7 +421,7 @@ ${SPOTS.length ? `<p><a href="${rel(2, `${HATSU}meisho/`)}">全国の初日の�
 <div class="tbl"><table><thead><tr><th>#</th><th>都道府県</th><th>初日の出</th><th>薄明開始</th><th>元日の日の入り</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   writePage(`${HATSU}index.html`, shell({
     path: HATSU, depth: 2,
-    title: `初日の出${HATSU_YEAR} 全国47都道府県の時刻一覧｜何時に見える？`,
+    title: `【${HATSU_YEAR}年】初日の出の時間 全国47都道府県一覧｜東京${hhmm(ranked.find(r => r.slug === "tokyo").t.sunrise)}・大阪${hhmm(ranked.find(r => r.slug === "osaka").t.sunrise)}`,
     desc: `${HATSU_YEAR}年元日の初日の出時刻を全国47都道府県で一覧比較。最も早いのは${first.pref}の${hhmm(first.t.sunrise)}、最も遅いのは${last.pref}の${hhmm(last.t.sunrise)}。薄明開始時刻と元日の日の入りもあわせて掲載しています。`,
     h1: `初日の出${HATSU_YEAR}年 全国の時刻一覧`,
     breadcrumbs: [{ name: "ホーム", path: "" }, { name: `初日の出${HATSU_YEAR}`, path: HATSU }],
